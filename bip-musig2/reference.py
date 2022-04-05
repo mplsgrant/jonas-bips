@@ -118,7 +118,7 @@ def point_negate(P: Optional[Point]) -> Optional[Point]:
         return P
     return (x(P), p - y(P))
 
-def pointc(x: bytes) -> Point:
+def cpoint(x: bytes) -> Point:
     P = lift_x(x[1:33])
     if P is None:
         raise ValueError('x is not a valid compressed point.')
@@ -235,7 +235,7 @@ def nonce_agg(pubnonces: List[bytes]) -> bytes:
     for i in (1, 2):
         R_i_ = infinity
         for j in range(u):
-            R_i_ = point_add(R_i_, pointc(pubnonces[j][(i-1)*33:i*33]))
+            R_i_ = point_add(R_i_, cpoint(pubnonces[j][(i-1)*33:i*33]))
         R_i = R_i_ if not is_infinite(R_i_) else G
         assert R_i is not None
         aggnonce += cbytes(R_i)
@@ -247,8 +247,8 @@ def get_session_values(session_ctx: SessionContext) -> tuple[Point, int, int, in
     (aggnonce, pubkeys, tweaks, is_xonly, msg) = session_ctx
     Q, gacc_v, tacc_v = key_agg_internal(pubkeys, tweaks, is_xonly)
     b = int_from_bytes(tagged_hash('MuSig/noncecoef', aggnonce + bytes_from_point(Q) + msg)) % n
-    R_1 = pointc(aggnonce[0:33])
-    R_2 = pointc(aggnonce[33:66])
+    R_1 = cpoint(aggnonce[0:33])
+    R_2 = cpoint(aggnonce[33:66])
     R = point_add(R_1, point_mul(R_2, b))
     # The aggregate public nonce cannot be infinity except with negligible probability.
     assert R is not None
@@ -300,8 +300,8 @@ def partial_sig_verify_internal(psig: bytes, pubnonce: bytes, pk_: bytes, sessio
     s = int_from_bytes(psig)
     if s >= n:
         return False
-    R_1_ = pointc(pubnonce[0:33])
-    R_2_ = pointc(pubnonce[33:66])
+    R_1_ = cpoint(pubnonce[0:33])
+    R_2_ = cpoint(pubnonce[33:66])
     R__ = point_add(R_1_, point_mul(R_2_, b))
     R_ = R__ if has_even_y(R) else point_negate(R__)
     g_v = 1 if has_even_y(Q) else n - 1
