@@ -275,7 +275,7 @@ Input:
 * The secret signing key ''sk'': a 32-byte array or 0-byte array (optional argument)
 * The aggregate public key ''aggpk'': a 32-byte array or 0-byte array (optional argument)
 * The message ''m'': a 32-byte array or 0-byte array (optional argument)
-* The auxiliary input ''extra_in'': a byte array with ''0 &le; len(in) &le; 2<sup>32</sup>-1'' (optional argument)
+* The auxiliary input ''extra_in'': a byte array with ''0 &le; len(extra_in) &le; 2<sup>32</sup>-1'' (optional argument)
 
 '''''NonceGen(sk, aggpk, m, extra_in)''''':
 * Let ''rand' '' be a 32-byte array freshly drawn uniformly at random
