@@ -4,11 +4,6 @@ import hashlib
 import secrets
 import time
 
-# WARNING: Implementers should be aware that some inputs could
-# trigger assertion errors, and proceed with caution. For example,
-# an assertion error raised in one of the functions below should not
-# cause a server process to crash.
-
 #
 # The following helper functions were copied from the BIP-340 reference implementation:
 # https://github.com/bitcoin/bips/blob/master/bip-0340/reference.py
@@ -277,8 +272,12 @@ def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, in
     (aggnonce, pubkeys, tweaks, is_xonly, msg) = session_ctx
     Q, gacc_v, tacc_v = key_agg_internal(pubkeys, tweaks, is_xonly)
     b = int_from_bytes(tagged_hash('MuSig/noncecoef', aggnonce + bytes_from_point(Q) + msg)) % n
-    R_1 = cpoint(aggnonce[0:33])
-    R_2 = cpoint(aggnonce[33:66])
+    try:
+        R_1 = cpoint(aggnonce[0:33])
+        R_2 = cpoint(aggnonce[33:66])
+    except ValueError:
+        # Nonce aggregator sent invalid nonces
+        raise InvalidContributionError(None, "aggnonce")
     R = point_add(R_1, point_mul(R_2, b))
     # The aggregate public nonce cannot be infinity except with negligible probability.
     assert R is not None
@@ -506,17 +505,55 @@ def test_sign_vectors():
 
     pk = bytes_from_point(point_mul(G, int_from_bytes(sk)))
 
+    # Vector 1
     session_ctx = SessionContext(aggnonce, [pk, X[0], X[1]], [], [], msg)
     assert sign(secnonce, sk, session_ctx) == expected[0]
     # WARNING: An actual implementation should clear the secnonce after use,
     # e.g. by setting secnonce = bytes(64) after usage. Reusing the secnonce, as
     # we do here for testing purposes, can leak the secret key.
 
+    # Vector 2
     session_ctx = SessionContext(aggnonce, [X[0], pk, X[1]], [], [], msg)
     assert sign(secnonce, sk, session_ctx) == expected[1]
 
+    # Vector 3
     session_ctx = SessionContext(aggnonce, [X[0], X[1], pk], [], [], msg)
     assert sign(secnonce, sk, session_ctx) == expected[2]
+
+    # Vector 4: Signer 2 provided an invalid public key
+    invalid_pk = bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000007')
+    session_ctx = SessionContext(aggnonce, [X[0], pk, invalid_pk], [], [], msg)
+    assertRaises(InvalidContributionError,
+                 lambda: sign(secnonce, sk, session_ctx),
+                 lambda e: e.signer == 2)
+
+    # Vector 5: Aggregate nonce is invalid due wrong tag, 0x04, in the first
+    # half
+    invalid_aggnonce = bytes.fromhex(
+        '048465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61' +
+        '037496A3CC86926D452CAFCFD55D25972CA1675D549310DE296BFF42F72EEEA8C9')
+    session_ctx = SessionContext(invalid_aggnonce, [X[0], X[1], pk], [], [], msg)
+    assertRaises(InvalidContributionError,
+                 lambda: sign(secnonce, sk, session_ctx),
+                 lambda e: e.signer == None)
+    # Vector 6: Aggregate nonce is invalid because the second half does not
+    # correspond to an X coordinate
+    invalid_aggnonce = bytes.fromhex(
+        '028465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61' +
+        '020000000000000000000000000000000000000000000000000000000000000009')
+    session_ctx = SessionContext(invalid_aggnonce, [X[0], X[1], pk], [], [], msg)
+    assertRaises(InvalidContributionError,
+                 lambda: sign(secnonce, sk, session_ctx),
+                 lambda e: e.signer == None)
+    # Vector 7: Aggregate nonce is invalid because second half exceeds field
+    # size
+    invalid_aggnonce = bytes.fromhex(
+        '028465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61' +
+        '02FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC30')
+    session_ctx = SessionContext(invalid_aggnonce, [X[0], X[1], pk], [], [], msg)
+    assertRaises(InvalidContributionError,
+                 lambda: sign(secnonce, sk, session_ctx),
+                 lambda e: e.signer == None)
 
 def test_tweak_vectors():
     X = fromhex_all([
