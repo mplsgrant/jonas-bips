@@ -261,7 +261,11 @@ def nonce_agg(pubnonces: List[bytes]) -> bytes:
     for i in (1, 2):
         R_i_ = infinity
         for j in range(u):
-            R_i_ = point_add(R_i_, cpoint(pubnonces[j][(i-1)*33:i*33]))
+            try:
+                R_ij = cpoint(pubnonces[j][(i-1)*33:i*33])
+            except ValueError:
+                raise InvalidContributionError(j, "pubnonce")
+            R_i_ = point_add(R_i_, R_ij)
         R_i = R_i_ if not is_infinite(R_i_) else G
         assert R_i is not None
         aggnonce += cbytes(R_i)
@@ -434,6 +438,49 @@ def test_nonce_gen_vectors():
     assert nonce_gen_internal(rand_, sk, aggpk, b'', extra_in)[0] == expected[1]
     assert nonce_gen_internal(rand_, b'', b'', b'', b'')[0] == expected[2]
 
+def test_nonce_agg_vectors():
+    pnonce = fromhex_all([
+        '020151C80F435648DF67A22B749CD798CE54E0321D034B92B709B567D60A42E666' +
+        '03BA47FBC1834437B3212E89A84D8425E7BF12E0245D98262268EBDCB385D50641',
+        '03FF406FFD8ADB9CD29877E4985014F66A59F6CD01C0E88CAA8E5F3166B1F676A6' +
+        '0248C264CDD57D3C24D79990B0F865674EB62A0F9018277A95011B41BFC193B833',
+    ])
+    expected = fromhex_all([
+        '035FE1873B4F2967F52FEA4A06AD5A8ECCBE9D0FD73068012C894E2E87CCB5804B' +
+        '024725377345BDE0E9C33AF3C43C0A29A9249F2F2956FA8CFEB55C8573D0262DC8'
+    ])
+
+    # Vector 1
+    assert nonce_agg([pnonce[0], pnonce[1]]) == expected[0]
+    # Vector 2: Public nonce from signer 1 is invalid due wrong tag, 0x04, in
+    # the first half
+    invalid_pnonce = bytes.fromhex(
+        '04FF406FFD8ADB9CD29877E4985014F66A59F6CD01C0E88CAA8E5F3166B1F676A6' +
+        '0248C264CDD57D3C24D79990B0F865674EB62A0F9018277A95011B41BFC193B833')
+    assertRaises(InvalidContributionError,
+                 lambda: nonce_agg([pnonce[0], invalid_pnonce]),
+                 lambda e: e.signer == 1 and e.contrib == "pubnonce")
+    # Vector 3: Public nonce from signer 0 is invalid because the second half
+    # does not correspond to an X coordinate
+    invalid_pnonce = bytes.fromhex(
+        '03FF406FFD8ADB9CD29877E4985014F66A59F6CD01C0E88CAA8E5F3166B1F676A6' +
+        '0248C264CDD57D3C24D79990B0F865674EB62A0F9018277A95011B41BFC193B831')
+    assertRaises(InvalidContributionError,
+                 lambda: nonce_agg([invalid_pnonce, pnonce[1]]),
+                 lambda e: e.signer == 0 and e.contrib == "pubnonce")
+    # Vector 4: Public nonce from signer 0 is invalid because second half
+    # exceeds field size
+    invalid_pnonce = bytes.fromhex(
+        '03FF406FFD8ADB9CD29877E4985014F66A59F6CD01C0E88CAA8E5F3166B1F676A6' +
+        '02FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC30')
+    assertRaises(InvalidContributionError,
+                 lambda: nonce_agg([invalid_pnonce, pnonce[1]]),
+                 lambda e: e.signer == 0 and e.contrib == "pubnonce")
+    # Vector 5: Sum of second points encoded in the nonces would be point at
+    # infinity, therefore set sum to base point G
+    neg_G = point_mul(G, n - 1)
+    assert nonce_agg([pnonce[0][0:33] + cbytes(G), pnonce[1][0:33] + cbytes(neg_G)]) == expected[0][0:33] + cbytes(G)
+
 def test_sign_vectors():
     X = fromhex_all([
         'F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9',
@@ -578,6 +625,7 @@ def test_sign_and_verify_random(iters):
 if __name__ == '__main__':
     test_key_agg_vectors()
     test_nonce_gen_vectors()
+    test_nonce_agg_vectors()
     test_sign_vectors()
     test_tweak_vectors()
     test_sign_and_verify_random(4)
