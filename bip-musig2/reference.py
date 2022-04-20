@@ -601,6 +601,16 @@ def test_tweak_vectors():
         '508B81A611F100A6B2B6B29656590898AF488BCF2E1F55CF22E5CFB84421FE61' +
         'FA27FD49B1D50085B481285E1CA205D55C82CC1B31FF5CD54A489829355901F7')
 
+    # The public nonce corresponding to secnonce is at index 0
+    pnonce = fromhex_all([
+        '0337C87821AFD50A8644D820A8F3E02E499C931865C2360FB43D0A0D20DAFE07EA' +
+        '0287BF891D2A6DEAEBADC909352AA9405D1428C15F4B75F04DAE642A95C2548480',
+        '0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798' +
+        '0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798',
+        '032DE2662628C90B03F5E720284EB52FF7D71F4284F627B68A853D78C78E1FFE93' +
+        '03E4C5524E83FFE1493B9077CF1CA6BEB2090C93D930321071AD40B2F44E599046'
+    ])
+
     aggnonce = bytes.fromhex(
         '028465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61' +
         '037496A3CC86926D452CAFCFD55D25972CA1675D549310DE296BFF42F72EEEA8C9')
@@ -624,24 +634,36 @@ def test_tweak_vectors():
 
     pk = bytes_from_point(point_mul(G, int_from_bytes(sk)))
 
-    # A single x-only tweak
+    # Vector 1: A single x-only tweak
     session_ctx = SessionContext(aggnonce, [X[0], X[1], pk], tweaks[:1], [True], msg)
     assert sign(secnonce, sk, session_ctx) == expected[0]
     # WARNING: An actual implementation should clear the secnonce after use,
     # e.g. by setting secnonce = bytes(64) after usage. Reusing the secnonce, as
     # we do here for testing purposes, can leak the secret key.
+    assert partial_sig_verify(expected[0], [pnonce[1], pnonce[2], pnonce[0]], [X[0], X[1], pk], tweaks[:1], [True], msg, 2)
 
-    # A single ordinary tweak
+    # Vector 2: A single ordinary tweak
     session_ctx = SessionContext(aggnonce, [X[0], X[1], pk], tweaks[:1], [False], msg)
     assert sign(secnonce, sk, session_ctx) == expected[1]
+    assert partial_sig_verify(expected[1], [pnonce[1], pnonce[2], pnonce[0]], [X[0], X[1], pk], tweaks[:1], [False], msg, 2)
 
-    # An ordinary tweak followed by an x-only tweak
+    # Vector 3: An ordinary tweak followed by an x-only tweak
     session_ctx = SessionContext(aggnonce, [X[0], X[1], pk], tweaks[:2], [False, True], msg)
     assert sign(secnonce, sk, session_ctx) == expected[2]
+    assert partial_sig_verify(expected[2], [pnonce[1], pnonce[2], pnonce[0]], [X[0], X[1], pk], tweaks[:2], [False, True], msg, 2)
 
-    # Four tweaks: x-only, ordinary, x-only, ordinary
+    # Vector 4: Four tweaks: x-only, ordinary, x-only, ordinary
     session_ctx = SessionContext(aggnonce, [X[0], X[1], pk], tweaks[:4], [True, False, True, False], msg)
     assert sign(secnonce, sk, session_ctx) == expected[3]
+    assert partial_sig_verify(expected[3], [pnonce[1], pnonce[2], pnonce[0]], [X[0], X[1], pk], tweaks[:4], [True, False, True, False], msg, 2)
+
+    # Vector 5: Tweak is invalid because it exceeds group size
+    invalid_tweak = bytes.fromhex('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141')
+    session_ctx = SessionContext(aggnonce, [X[0], X[1], pk], [invalid_tweak], [False], msg)
+    assertRaises(ValueError,
+                 lambda: sign(secnonce, sk, session_ctx),
+                 lambda e: str(e) == 'The tweak must be less than n.')
+
 
 def test_sign_and_verify_random(iters):
     for i in range(iters):
