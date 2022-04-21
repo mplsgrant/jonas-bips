@@ -341,14 +341,14 @@ def partial_sig_verify_internal(psig: bytes, pubnonce: bytes, pk_: bytes, sessio
     a = get_session_key_agg_coeff(session_ctx, P)
     return point_mul(G, s) == point_add(R_, point_mul(P, e * a % n))
 
-def partial_sig_agg(psigs: List[bytes], session_ctx: SessionContext) -> Optional[bytes]:
+def partial_sig_agg(psigs: List[bytes], session_ctx: SessionContext) -> bytes:
     (Q, _, tacc_v, _, R, e) = get_session_values(session_ctx)
     s = 0
     u = len(psigs)
     for i in range(u):
         s_i = int_from_bytes(psigs[i])
         if s_i >= n:
-            return None
+            raise InvalidContributionError(i, "psig")
         s = (s + s_i) % n
     g_v = 1 if has_even_y(Q) else n - 1
     s = (s + e * g_v * tacc_v) % n
@@ -664,6 +664,86 @@ def test_tweak_vectors():
                  lambda: sign(secnonce, sk, session_ctx),
                  lambda e: str(e) == 'The tweak must be less than n.')
 
+def test_sig_agg_vectors():
+    X = fromhex_all([
+        '487D1B83B41B4CBBD07A111F1BBC7BDC8864CFEF5DBF96E46E51C68399B0BEF6',
+        '4795C22501BF534BC478FF619407A7EC9E8D8883646D69BD43A0728944EA802F',
+        '0F5BE837F3AB7E7FEFF1FAA44D673C2017206AE836D2C7893CDE4ACB7D55EDEB',
+        '0FD453223E444FCA91FB5310990AE8A0C5DAA14D2A4C8944E1C0BC80C30DF682',
+    ])
+    aggnonce = fromhex_all([
+        '024FA51009A56F0D6DF737131CE1FBBD833797AF3B4FE6BF0D68F4D49F68B0947E' +
+        '0248FB3BB9191F0CFF13806A3A2F1429C23012654FCE4E41F7EC9169EAA6056B21',
+        '023B11E63E2460E5E0F1561BB700FEA95B991DD9CA2CBBE92A3960641FA7469F67' +
+        '02CA4CD38375FE8BEB857C770807225BFC7D712F42BA896B83FC71138E56409B21',
+        '03F98BEAA32B8A38FE3797C4E813DC9CE05ADBE32200035FB37EB0A030B735E9B' +
+        '6030E6118EC98EA2BA7A358C2E38E7E13E63681EEB683E067061BF7D52DCF08E615',
+        '026491FBCFD47148043A0F7310E62EF898C10F2D0376EE6B232EAAD36F3C2E29E' +
+        '303020CB17D168908E2904DE2EB571CD232CA805A6981D0F86CDBBD2F12BD91F6D0',
+    ])
+
+    msg = bytes.fromhex('599C67EA410D005B9DA90817CF03ED3B1C868E4DA4EDF00A5880B0082C237869')
+
+    tweaks = fromhex_all([
+        "B511DA492182A91B0FFB9A98020D55F260AE86D7ECBD0399C7383D59A5F2AF7C",
+        "A815FE049EE3C5AAB66310477FBC8BCCCAC2F3395F59F921C364ACD78A2F48DC",
+        "75448A87274B056468B977BE06EB1E9F657577B7320B0A3376EA51FD420D18A8"
+    ])
+    psig = fromhex_all([
+        'E5C1CBD6E7E89FE9EE30D5F3B6D06B9C218846E4A1DEF4EE851410D51ABBD850',
+        '9BC470F7F1C9BC848BDF179B0023282FFEF40908E0EF88459784A4355FC86D0C',
+        'D5D8A09929BA264B2F5DF15ACA1CF2DEFA47C048DF0C3232E965FFE2F2831B1D',
+        'A915197503C1051EA77DC91F01C3A0E60BFD64473BD536CB613F9645BD61C843',
+        '99A144D7076A128022134E036B8BDF33811F7EAED9A1E48549B46D8A63D64DC9',
+        '716A72A0C1E531EBB4555C8E29FD35C796F4F231C3B039193D7E8D7AEFBDF5F7',
+        '06B6DD04BC0F1EF740916730AD7DAC794255B161221719765BDE9686A26633DC',
+        'BF6D85D4930062726EBC6EBB184AFD68DBB3FED159C501989690A62600D6FBAB',
+    ])
+
+    expected = fromhex_all([
+        '4006D4D069F3B51E968762FF8074153E278E5BCD221AABE0743CA001B77E79F5' +
+        '81863CCED9B25C6E7A0FED8EB6F393CD65CD7306D385DCF85CC6567DAA4E041B',
+        '98BCD40DFD94B47A3DA37D7B78EB6CCE8ABEACA23C3ADE6F4678902410EB35C6' +
+        '7EEDBA0E2D7B2B69D6DBBA79CBE093C64B9647A96B98C8C28AD3379BDFAEA21F',
+        '3741FEDCCDD7508B58DCB9A780FF5D97452EC8C0448D8C97004EA7175C14F200' +
+        '7A54D1DE356EBA6719278436EF111DFA8F1B832368371B9B7A25001709039679',
+        'F4B3DA3CF0D0F7CF5C1840593BF1A1A415DA341619AE848F2210696DC8C75125' +
+        '40962C84EF7F0CEC491065F2D577213CF10E8A63D153297361B3B172BE27B61F',
+    ])
+
+    # Vector 1
+    session_ctx = SessionContext(aggnonce[0], [X[0], X[1]], [], [], msg)
+    sig = partial_sig_agg([psig[0], psig[1]], session_ctx)
+    assert sig == expected[0]
+    aggpk = key_agg([X[0], X[1]], [], [])
+    assert schnorr_verify(msg, aggpk, sig)
+
+    # Vector 2
+    session_ctx = SessionContext(aggnonce[1], [X[0], X[2]], [], [], msg)
+    sig = partial_sig_agg([psig[2], psig[3]], session_ctx)
+    assert sig == expected[1]
+    aggpk = key_agg([X[0], X[2]], [], [])
+    assert schnorr_verify(msg, aggpk, sig)
+
+    # Vector 3
+    session_ctx = SessionContext(aggnonce[2], [X[0], X[2]], [tweaks[0]], [False], msg)
+    sig = partial_sig_agg([psig[4], psig[5]], session_ctx)
+    assert sig == expected[2]
+    aggpk = key_agg([X[0], X[2]], [tweaks[0]], [False])
+    assert schnorr_verify(msg, aggpk, sig)
+
+    # Vector 4
+    session_ctx = SessionContext(aggnonce[3], [X[0], X[3]], tweaks, [True, False, True], msg)
+    sig = partial_sig_agg([psig[6], psig[7]], session_ctx)
+    assert sig == expected[3]
+    aggpk = key_agg([X[0], X[3]], tweaks, [True, False, True])
+    assert schnorr_verify(msg, aggpk, sig)
+
+    # Vector 5: Partial signature is invalid because it exceeds group size
+    invalid_psig = bytes.fromhex('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141')
+    assertRaises(InvalidContributionError,
+                 lambda: partial_sig_agg([psig[7], invalid_psig], session_ctx),
+                 lambda e: e.signer == 1)
 
 def test_sign_and_verify_random(iters):
     for i in range(iters):
@@ -723,4 +803,5 @@ if __name__ == '__main__':
     test_nonce_agg_vectors()
     test_sign_verify_vectors()
     test_tweak_vectors()
+    test_sig_agg_vectors()
     test_sign_and_verify_random(4)
