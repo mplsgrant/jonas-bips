@@ -549,6 +549,15 @@ There are, however, insecure toy schemes with AGM security proofs, but those exp
 In contrast, in MuSig2, all group elements that arise in the protocol are known to the adversary and declared as group element inputs.
 A scheme very similar to MuSig2 and with two-point nonces was independently proven secure in the ROM and AGM by [https://eprint.iacr.org/2020/1245 Alper and Burdges].
 
+== Change Log ==
+
+To help implementors understand updates to this BIP, we attach a version number that resembles ''semantic versioning'' (<code>MAJOR.MINOR.PATCH</code>).
+A change in the <code>MAJOR</code> version indicates that the specification is incompatible with prior versions.
+The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
+The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
+
+* '''0.1.0''' (2022-05-19): Publication of draft BIP on the bitcoin-dev mailing list
+
 == Footnotes ==
 
 <references />
