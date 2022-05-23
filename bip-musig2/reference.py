@@ -197,11 +197,11 @@ def nonce_hash(rand: bytes, aggpk: bytes, i: int, msg: bytes, extra_in: bytes) -
     buf += rand
     buf += len(aggpk).to_bytes(1, 'big')
     buf += aggpk
-    buf += i.to_bytes(1, 'big')
     buf += len(msg).to_bytes(1, 'big')
     buf += msg
     buf += len(extra_in).to_bytes(4, 'big')
     buf += extra_in
+    buf += i.to_bytes(1, 'big')
     return int_from_bytes(tagged_hash('MuSig/nonce', buf))
 
 def nonce_gen(sk: bytes, aggpk: bytes, msg: bytes, extra_in: bytes) -> Tuple[bytes, bytes]:
@@ -216,8 +216,8 @@ def nonce_gen(sk: bytes, aggpk: bytes, msg: bytes, extra_in: bytes) -> Tuple[byt
         rand = bytes_xor(sk, tagged_hash('MuSig/aux', rand_))
     else:
         rand = rand_
-    k_1 = nonce_hash(rand, aggpk, 1, msg, extra_in)
-    k_2 = nonce_hash(rand, aggpk, 2, msg, extra_in)
+    k_1 = nonce_hash(rand, aggpk, 0, msg, extra_in)
+    k_2 = nonce_hash(rand, aggpk, 1, msg, extra_in)
     # k_1 == 0 or k_2 == 0 cannot occur except with negligible probability.
     assert k_1 != 0
     assert k_2 != 0
