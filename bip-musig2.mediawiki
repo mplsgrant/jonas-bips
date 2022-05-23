@@ -81,6 +81,8 @@ A ''secnonce'' consisting of only zero bytes is invalid for ''Sign'' and will ca
 To simplify the specification, some intermediary values are unnecessarily recomputed from scratch, e.g., when executing ''GetSessionValues'' multiple times.
 Actual implementations can cache these values.
 As a result, the [[#session-context|Session Context]] may look very different in implementations or may not exist at all.
+However, computation of ''GetSessionValues'' and storage of the result must '''not''' be outsourced to an untrusted third party.
+This party would have complete control over the aggregate public key and message to be signed.
 
 ==== Public Key Aggregation  ====
 
