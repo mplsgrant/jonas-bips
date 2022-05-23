@@ -311,7 +311,7 @@ Input:
 * If the optional argument ''sk'' is present:
 ** Let ''rand'' be the byte-wise xor of ''sk'' and ''hash<sub>MuSig/aux</sub>(rand')''<ref>The random data is hashed (with a unique tag) as a precaution against situations where the randomness may be correlated with the secret signing key itself. It is xored with the secret key (rather than combined with it in a hash) to reduce the number of operations exposed to the actual secret key.</ref>.
 * Else:
-** let ''rand = rand' ''
+** Let ''rand = rand' ''
 * If the optional argument ''aggpk'' is not present:
 ** Let ''aggpk = empty_bytestring''
 * If the optional argument ''m'' is not present:
