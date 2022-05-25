@@ -197,27 +197,20 @@ def nonce_hash(rand: bytes, aggpk: bytes, i: int, msg: bytes, extra_in: bytes) -
     buf += rand
     buf += len(aggpk).to_bytes(1, 'big')
     buf += aggpk
-    buf += i.to_bytes(1, 'big')
     buf += len(msg).to_bytes(1, 'big')
     buf += msg
     buf += len(extra_in).to_bytes(4, 'big')
     buf += extra_in
+    buf += i.to_bytes(1, 'big')
     return int_from_bytes(tagged_hash('MuSig/nonce', buf))
 
-def nonce_gen(sk: bytes, aggpk: bytes, msg: bytes, extra_in: bytes) -> Tuple[bytes, bytes]:
-    if len(sk) not in (0, 32):
-        raise ValueError('The optional byte array sk must have length 0 or 32.')
-    if len(aggpk) not in (0, 32):
-        raise ValueError('The optional byte array aggpk must have length 0 or 32.')
-    if len(msg) not in (0, 32):
-        raise ValueError('The optional byte array msg must have length 0 or 32.')
-    rand_ = secrets.token_bytes(32)
+def nonce_gen_internal(rand_: bytes, sk: bytes, aggpk: bytes, msg: bytes, extra_in: bytes) -> Tuple[bytes, bytes]:
     if len(sk) > 0:
         rand = bytes_xor(sk, tagged_hash('MuSig/aux', rand_))
     else:
         rand = rand_
-    k_1 = nonce_hash(rand, aggpk, 1, msg, extra_in)
-    k_2 = nonce_hash(rand, aggpk, 2, msg, extra_in)
+    k_1 = nonce_hash(rand, aggpk, 0, msg, extra_in)
+    k_2 = nonce_hash(rand, aggpk, 1, msg, extra_in)
     # k_1 == 0 or k_2 == 0 cannot occur except with negligible probability.
     assert k_1 != 0
     assert k_2 != 0
@@ -228,6 +221,16 @@ def nonce_gen(sk: bytes, aggpk: bytes, msg: bytes, extra_in: bytes) -> Tuple[byt
     pubnonce = cbytes(R_1_) + cbytes(R_2_)
     secnonce = bytes_from_int(k_1) + bytes_from_int(k_2)
     return secnonce, pubnonce
+
+def nonce_gen(sk: bytes, aggpk: bytes, msg: bytes, extra_in: bytes) -> Tuple[bytes, bytes]:
+    if len(sk) not in (0, 32):
+        raise ValueError('The optional byte array sk must have length 0 or 32.')
+    if len(aggpk) not in (0, 32):
+        raise ValueError('The optional byte array aggpk must have length 0 or 32.')
+    if len(msg) not in (0, 32):
+        raise ValueError('The optional byte array msg must have length 0 or 32.')
+    rand_ = secrets.token_bytes(32)
+    return nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)
 
 def nonce_agg(pubnonces: List[bytes]) -> bytes:
     u = len(pubnonces)
@@ -351,6 +354,29 @@ def test_key_agg_vectors():
     assert key_agg([X[2], X[1], X[0]], [], []) == expected[1]
     assert key_agg([X[0], X[0], X[0]], [], []) == expected[2]
     assert key_agg([X[0], X[0], X[1], X[1]], [], []) == expected[3]
+
+
+def test_nonce_gen_vectors():
+    def fill(i):
+        return i.to_bytes(1, byteorder='big') * 32
+    rand_ = fill(0)
+    msg = fill(1)
+    sk = fill(2)
+    aggpk = fill(3)
+    extra_in = fill(4)
+
+    expected = fromhex_all([
+        '149378B996F012F70C1016C29AE0A9B1D86AAD557CCD29178A24479756205DFD' +
+        '6285697E57E8578FCFDE6FE7FA4B6CA8E3A5AECAB4FB92F84B7F9DF8DDEF4DB8',
+        '6613EA4A36A50F34990EAF73612EAA28636ED01325793456C04D8D89DB49372B' +
+        '54E9DB34D09CBD394DB3FE3CCFFBCA6ED016F3AC877938613095893F54FA70DF',
+        '7B3B5A002356471AF0E961DE2549C121BD0D48ABCEEDC6E034BDDF86AD3E0A18' +
+        '7ECEE674CEF7364B0BC4BEEFB8B66CAD89F98DE2F8C5A5EAD5D1D1E4BD7D04CD'
+    ])
+
+    assert nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)[0] == expected[0]
+    assert nonce_gen_internal(rand_, sk, aggpk, b'', extra_in)[0] == expected[1]
+    assert nonce_gen_internal(rand_, b'', b'', b'', b'')[0] == expected[2]
 
 def test_sign_vectors():
     X = fromhex_all([
@@ -495,6 +521,7 @@ def test_sign_and_verify_random(iters):
 
 if __name__ == '__main__':
     test_key_agg_vectors()
+    test_nonce_gen_vectors()
     test_sign_vectors()
     test_tweak_vectors()
     test_sign_and_verify_random(4)
