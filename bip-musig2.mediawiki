@@ -94,7 +94,7 @@ This is by design: All algorithms in this specification handle multiple signers 
 and applications are not required to check for duplicate public keys.
 In fact, applications are recommended to omit checks for duplicate public keys in order to simplify error handling.
 Moreover, it is often impossible to tell at key aggregation which signer is to blame for the duplicate, i.e., which signer came up with the public key honestly and which disruptive signer copied it.
-In contrast, MuSig2 is designed to identify disruptive signers at signing time: any signer who prevents a signing session from completing successfully by sending incorrect contributions in the session can be identified and held accountable (see below).
+In contrast, MuSig2 is designed to identify disruptive signers at signing time (see [[#identifiying-disruptive-signers|Identifiying Disruptive Signers]]).
 
 ==== Nonce Generation ====
 
@@ -127,6 +127,9 @@ This signer waits until it receives the ''pubnonce'' of all the other signers an
 Then, the signer can run ''NonceGen'', ''NonceAgg'' and ''Sign'' in sequence and send out its ''pubnonce'' along with its partial signature.
 
 ==== Identifiying Disruptive Signers ====
+
+If the signing session fails to output a valid signature, each honest signer will identify at least one disruptive signer, who sent incorrect contributions in the session.
+Additionally, if the honest signers agree on the set of messages sent by all signers in the signing session, then the honest signers will identify the same disruptive signer.
 
 If any signer sends an incorrect partial signature, i.e., one that has not then been created with ''Sign'' and the right arguments for the session, the MuSig2 protocol may fail to output a valid Schnorr signature.
 This standard provides the method ''PartialSigVerify'' to verify the correctness of partial signatures.
