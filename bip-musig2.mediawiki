@@ -26,7 +26,7 @@ This document is licensed under the 3-clause BSD license.
 
 MuSig2 is a multi-signature scheme that allows multiple signers to create a single aggregate public key and cooperatively create ordinary Schnorr signatures valid under the aggregate key.
 Signing requires interaction between ''all'' signers involved in key aggregation.
-(MuSig2 is a ''n-of-n'' multi-signature scheme and not a ''t-of-n' threshold-signature scheme.)
+(MuSig2 is a ''n-of-n'' multi-signature scheme and not a ''t-of-n'' threshold-signature scheme.)
 
 The primary motivation for MuSig2 is the activation of Taproot ([https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341]) on the Bitcoin network, which introduced the ability to authorize transactions with Schnorr signatures.
 This standard allows the creation of aggregate public keys that can be used in Taproot outputs.
@@ -184,9 +184,9 @@ The following conventions are used, with constants as defined for [https://www.s
 ** ''||'' refers to byte array concatenation.
 ** The function ''x[i:j]'', where ''x'' is a byte array and ''i, j &ge; 0'', returns a ''(j - i)''-byte array with a copy of the ''i''-th byte (inclusive) to the ''j''-th byte (exclusive) of ''x''.
 ** The function ''bytes(n, x)'', where ''x'' is an integer, returns the n-byte encoding of ''x'', most significant byte first.
-** The function ''bytes(P)'', where ''P'' is a point, returns ''bytes(x(P))''.
+** The function ''bytes(P)'', where ''P'' is a point, returns ''bytes(32, x(P))''.
 ** The function ''len(x)'' where ''x'' is a byte array returns the length of the array.
-** The function ''has_even_y(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''y(P) mod 2 = 0''.
+** The function ''has_even_y(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''y(P) mod 2 == 0''.
 ** The function ''with_even_y(P)'', where ''P'' is a point, returns ''P'' if ''is_infinite(P)'' or ''has_even_y(P)''. Otherwise,  ''with_even_y(P)'' returns ''-P''.
 ** The function ''cbytes(P)'', where ''P'' is a point, returns ''a || bytes(P)'' where ''a'' is a byte that is ''2'' if ''has_even_y(P)'' and ''3'' otherwise.
 ** The function ''int(x)'', where ''x'' is a 32-byte array, returns the 256-bit unsigned integer whose most significant byte first encoding is ''x''.
@@ -222,7 +222,7 @@ Input:
 * The public keys ''pk<sub>1..u</sub>'': ''u'' 32-byte arrays
 * The number ''v'' of tweaks with ''0 &le; v < 2^32''
 * The tweaks ''tweak<sub>1..v</sub>'': ''v'' 32-byte arrays
-* The tweak methods ''is_xonly_t<sub>1..v</sub>'' : ''v'' booleans
+* The tweak modes ''is_xonly_t<sub>1..v</sub>'' : ''v'' booleans
 
 '''''KeyAgg(pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>)''''':
 * Let ''(Q,_,_) = KeyAggInternal(pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>)''; fail if that fails.
@@ -313,7 +313,7 @@ The Session Context is a data structure consisting of the following elements:
 * The public keys ''pk<sub>1..u</sub>'': ''u'' 32-byte arrays
 * The number ''v'' of tweaks with ''0 &le; v < 2^32''
 * The tweaks ''tweak<sub>1..v</sub>'': ''v'' 32-byte arrays
-* The tweak methods ''is_xonly_t<sub>1..v</sub>'' : ''v'' booleans
+* The tweak modes ''is_xonly_t<sub>1..v</sub>'' : ''v'' booleans
 * The message ''m'': a 32-byte array
 
 We write "Let ''(aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m) = session_ctx''" to assign names to the elements of a Session Context.
@@ -367,7 +367,7 @@ Input:
 * The public keys ''pk<sub>1..u</sub>'': ''u'' 32-byte arrays
 * The number ''v'' of tweaks with ''0 &le; v < 2^32''
 * The tweaks ''tweak<sub>1..v</sub>'': ''v'' 32-byte arrays
-* The tweak methods ''is_xonly_t<sub>1..v</sub>'' : ''v'' booleans
+* The tweak modes ''is_xonly_t<sub>1..v</sub>'' : ''v'' booleans
 * The message ''m'': a 32-byte array
 * The index of the signer ''i'' in the public nonces and public keys with ''0 < i &le; u''
 
