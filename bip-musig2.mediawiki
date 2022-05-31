@@ -96,6 +96,11 @@ In fact, applications are recommended to omit checks for duplicate public keys i
 Moreover, it is often impossible to tell at key aggregation which signer is to blame for the duplicate, i.e., which signer came up with the public key honestly and which disruptive signer copied it.
 In contrast, MuSig2 is designed to identify disruptive signers at signing time (see [[#identifiying-disruptive-signers|Identifiying Disruptive Signers]]).
 
+While this specification is able to deal with duplicate public keys, there are scenarios where applications may choose to abort when encountering duplicate public keys.
+For example, we can imagine a scenario where a single entity creates a MuSig2 setup with multiple signing devices.
+In that case, duplicate public keys may not result from a malicious signing device copying a public key of another signing device but from accidental initialization of two devices with the same seed.
+Since MuSig2 key aggregation would accept the duplicate keys and not error out, which would in turn reduce the security compared to the intended key setup, applications may reject duplicate public keys before passing them to MuSig2 key aggregation and ask the user to investigate.
+
 ==== Nonce Generation ====
 
 '''IMPORTANT''': ''NonceGen'' must have access to a high-quality random generator to draw an unbiased, uniformly random value ''rand' ''.
