@@ -433,8 +433,11 @@ def test_nonce_gen_vectors():
         '7ECEE674CEF7364B0BC4BEEFB8B66CAD89F98DE2F8C5A5EAD5D1D1E4BD7D04CD'
     ])
 
+    # Vector 1
     assert nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)[0] == expected[0]
+    # Vector 2
     assert nonce_gen_internal(rand_, sk, aggpk, b'', extra_in)[0] == expected[1]
+    # Vector 3
     assert nonce_gen_internal(rand_, b'', b'', b'', b'')[0] == expected[2]
 
 def test_nonce_agg_vectors():
