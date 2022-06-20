@@ -131,7 +131,7 @@ However, it is possible for one of the signers to be stateless.
 This signer waits until it receives the ''pubnonce'' of all the other signers and until session parameters such as a message to sign, public keys, and tweaks are determined.
 Then, the signer can run ''NonceGen'', ''NonceAgg'' and ''Sign'' in sequence and send out its ''pubnonce'' along with its partial signature.
 
-==== Identifiying Disruptive Signers ====
+==== Identifying Disruptive Signers ====
 
 If the signing session fails to output a valid signature, each honest signer will identify at least one disruptive signer, who sent incorrect contributions in the session.
 Additionally, if the honest signers agree on the set of messages sent by all signers in the signing session, then the honest signers will identify the same disruptive signer.
@@ -192,11 +192,12 @@ The following conventions are used, with constants as defined for [https://www.s
 ** ''||'' refers to byte array concatenation.
 ** The function ''x[i:j]'', where ''x'' is a byte array and ''i, j &ge; 0'', returns a ''(j - i)''-byte array with a copy of the ''i''-th byte (inclusive) to the ''j''-th byte (exclusive) of ''x''.
 ** The function ''bytes(n, x)'', where ''x'' is an integer, returns the n-byte encoding of ''x'', most significant byte first.
-** The function ''bytes(P)'', where ''P'' is a point, returns ''bytes(32, x(P))''.
+** The function ''bytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''bytes(32, x(P))''.
 ** The function ''len(x)'' where ''x'' is a byte array returns the length of the array.
 ** The function ''has_even_y(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''y(P) mod 2 == 0''.
 ** The function ''with_even_y(P)'', where ''P'' is a point, returns ''P'' if ''is_infinite(P)'' or ''has_even_y(P)''. Otherwise,  ''with_even_y(P)'' returns ''-P''.
-** The function ''cbytes(P)'', where ''P'' is a point, returns ''a || bytes(P)'' where ''a'' is a byte that is ''2'' if ''has_even_y(P)'' and ''3'' otherwise.
+** The function ''cbytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''a || bytes(P)'' where ''a'' is a byte that is ''2'' if ''has_even_y(P)'' and ''3'' otherwise.
+** The function ''cbytes_extended(P)'', where ''P'' is a point, returns ''bytes(33, 0)'' if ''is_infinite(P)''. Otherwise, it returns ''cbytes(P)''.
 ** The function ''int(x)'', where ''x'' is a 32-byte array, returns the 256-bit unsigned integer whose most significant byte first encoding is ''x''.
 ** The function ''lift_x(x)'', where ''x'' is an integer in range ''0..2<sup>256</sup>-1'', returns the point ''P'' for which ''x(P) = x''<ref>
     Given a candidate X coordinate ''x'' in the range ''0..p-1'', there exist either exactly two or exactly zero valid Y coordinates. If no valid Y coordinate exists, then ''x'' is not a valid X coordinate either, i.e., no point ''P'' exists for which ''x(P) = x''. The valid Y coordinates for a given candidate ''x'' are the square roots of ''c = x<sup>3</sup> + 7 mod p'' and they can be computed as ''y = &plusmn;c<sup>(p+1)/4</sup> mod p'' (see [https://en.wikipedia.org/wiki/Quadratic_residue#Prime_or_prime_power_modulus Quadratic residue]) if they exist, which can be checked by squaring and comparing with ''c''.</ref> and ''has_even_y(P)'', or fails if ''x'' is greater than ''p-1'' or no such point exists. The function ''lift_x(x)'' is equivalent to the following pseudocode:
@@ -208,6 +209,7 @@ The following conventions are used, with constants as defined for [https://www.s
 *** Return the unique point ''P'' such that ''x(P) = x'' and ''y(P) = y''.
 ** The function ''point(x)'', where ''x'' is a 32-byte array ("X-only" serialization), returns ''lift_x(int(x))''. Fail if ''lift_x'' fails.
 ** The function ''cpoint(x)'', where ''x'' is a 33-byte array (compressed serialization), sets ''P = lift_x(int(x[1:33]))'' and fails if that fails. If ''x[0] = 2'' it returns ''P'' and if ''x[0] = 3'' it returns ''-P''. Otherwise, it fails.
+** The function ''cpoint_extended(x)'', where ''x'' is a 33-byte array (compressed serialization), returns the point at infinity if ''x = bytes(33, 0)''. Otherwise, it returns ''cpoint(x)'' and fails if that fails.
 ** The function ''hash<sub>tag</sub>(x)'' where ''tag'' is a UTF-8 encoded tag name and ''x'' is a byte array returns the 32-byte hash ''SHA256(SHA256(tag) || SHA256(tag) || x)''.
 * Other:
 ** Tuples are written by listing the elements within parentheses and separated by commas. For example, ''(2, 3, 1)'' is a tuple.
@@ -309,9 +311,8 @@ Input:
 * For ''i = 1 .. 2'':
 ** For ''j = 1 .. u'':
 *** Let ''R<sub>i,j</sub> = cpoint(pubnonce<sub>j</sub>[(i-1)*33:i*33])''; fail if that fails
-** Let ''R'<sub>i</sub> = R<sub>i,1</sub> + R<sub>i,2</sub> + ... + R<sub>i,u</sub>''
-** <div id="NonceAgg infinity"></div>Let ''R<sub>i</sub> = R'<sub>i</sub>'' if not ''is_infinite(R'<sub>i</sub>)'', otherwise let R<sub>i</sub> = G'' (see [[#dealing-with-infinity-in-nonce-aggregation|Dealing with Infinity in Nonce Aggregation]])
-* Return ''aggnonce = cbytes(R<sub>1</sub>) || cbytes(R<sub>2</sub>)''
+** Let ''R<sub>i</sub> = R<sub>i,1</sub> + R<sub>i,2</sub> + ... + R<sub>i,u</sub>''
+* Return ''aggnonce = cbytes_extended(R<sub>1</sub>) || cbytes_extended(R<sub>2</sub>)''
 
 ==== Session Context ====
 
@@ -330,9 +331,12 @@ We write "Let ''(aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xon
 * Let ''(aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m) = session_ctx''
 * Let ''(Q, gacc<sub>v</sub>, tacc<sub>v</sub>) = KeyAggInternal(pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>)''; fail if that fails
 * Let ''b = int(hash<sub>MuSig/noncecoef</sub>(aggnonce || bytes(Q) || m)) mod n''
-* Let ''R<sub>1</sub> = cpoint(aggnonce[0:33]), R<sub>2</sub> = cpoint(aggnonce[33:66])''; fail if that fails
-* Let ''R = R<sub>1</sub> + b⋅R<sub>2</sub>''
-* Fail if ''is_infinite(R)''
+* Let ''R<sub>1</sub> = cpoint_extended(aggnonce[0:33]), R<sub>2</sub> = cpoint_extended(aggnonce[33:66])''; fail if that fails
+* Let ''R' = R<sub>1</sub> + b⋅R<sub>2</sub>''
+* If ''is_infinite(R'):
+** Let ''R = G'' (see [[#dealing-with-infinity-in-nonce-aggregation|Dealing with Infinity in Nonce Aggregation]])
+* Else:
+** Let ''R = R' ''
 * Let ''e = int(hash<sub>BIP0340/challenge</sub>(bytes(R) || bytes(Q) || m)) mod n''
 * Return ''(Q, gacc<sub>v</sub>, tacc<sub>v</sub>, b, R, e)''
 
@@ -522,24 +526,20 @@ Note that the aggregate public key and list of tweaks are inputs to partial sign
 
 === Dealing with Infinity in Nonce Aggregation ===
 
-If it happens that ''is_infinite(R'<sub>i</sub>)'' inside ''[[#NonceAgg infinity|NonceAgg]]''  there is at least one dishonest signer (except with negligible probability).
-If we fail here, we will never be able to determine who it is.
-Therefore, we continue so that the culprit is revealed when collecting and verifying partial signatures.
+If the nonce aggregator provides ''aggnonce = bytes(33,0) || bytes(33,0)'', either the nonce aggregator is dishonest or there is at least one dishonest signer (except with negligible probability).
+If signing aborted in this case, it would be impossible to determine who is dishonest.
+Therefore, signing continues so that the culprit is revealed when collecting and verifying partial signatures.
 
-However, dealing with the point at infinity requires defining a serialization and may require extra code complexity in implementations.
-Instead of incurring this complexity, we make two modifications (compared to the MuSig2* appendix in the [https://eprint.iacr.org/2020/1261 MuSig2 paper]) to avoid infinity while still allowing us to detect the dishonest signer:
-* In ''NonceAgg'', if an output ''R'<sub>i</sub>'' would be infinity, instead output the generator (an arbitrary choice).
-* In ''Sign'', implicitly disallow the input ''aggnonce'' to contain infinity (since the serialization format doesn't support it).
+However, the final nonce ''R'' of a BIP340 Schnorr signature cannot be the point at infinity.
+If this specification would nonetheless allow the final nonce to be the point at infinity, then the scheme would lose the following property:
+if ''PartialSigVerify'' succeeds for all partial signatures, then ''PartialSigAgg'' will return a valid Schnorr signature.
+Since this is a valuable feature, we modify MuSig2* (which is defined in the appendix of the [https://eprint.iacr.org/2020/1261 MuSig2 paper]) to avoid producing an invalid Schnorr signature while still allowing detection of the dishonest signer: In ''GetSessionValues'', if the final nonce ''R'' would be the point at infinity, set it to the generator instead (an arbitrary choice).
 
-The entire ''NonceAgg'' function (both the original and modified version) only depends on publicly available data (the set of public pre-nonces from every signer).
-In the unforgeability proof, ''NonceAgg'' is considered to be performed by an untrusted party; thus modifications to ''NonceAgg'' do not affect the unforgeability of the scheme.
-
-The (implicit) modification to ''Sign'' is equivalent to adding a clause, "abort if the input ''aggnonce'' contained infinity".
-This modification only depends on the publicly available ''aggnonce''.
-Given a successful adversary against the security game (EUF-CMA) for the modified scheme, a reduction can win the security game for the original scheme by simulating the modification (i.e. checking whether to abort) towards the adversary.
-
-We conclude that these two modifications preserve the security of the MuSig2* scheme.
-
+This modification to ''GetSessionValues'' does not affect the unforgeability of the scheme.
+Given a successful adversary against the unforgeability game (EUF-CMA) for the modified scheme, a reduction can win the unforgeability game for the original scheme by simulating the modification towards the adversary:
+When the adversary provides ''aggnonce' = bytes(33, 0) || bytes(33, 0)'', the reduction sets ''aggnonce = cbytes_extended(G) || bytes(33, 0)''.
+For any other ''aggnonce' '', the reduction sets ''aggnonce = aggnonce' ''.
+(The case that the adversary provides an ''aggnonce' ≠ bytes(33, 0) || bytes(33, 0) '' but nevertheless ''R' '' in ''GetSessionValues'' is the point at infinity happens only with negligible probability.)
 
 === Choosing the Size of the Nonce ===
 
@@ -562,10 +562,12 @@ A scheme very similar to MuSig2 and with two-point nonces was independently prov
 == Change Log ==
 
 To help implementors understand updates to this BIP, we attach a version number that resembles ''semantic versioning'' (<code>MAJOR.MINOR.PATCH</code>).
-A change in the <code>MAJOR</code> version indicates that the specification is incompatible with prior versions.
+The <code>MAJOR</code> version is incremented if changes to the specification are introduced that are incompatible with prior versions.
+An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is for development and does not need to be incremented if backwards incompatible changes are introduced.
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
+* '''0.4.0''' (2022-06-20): Allow the output of NonceAgg to be infinity and add test vectors
 * '''0.3.2''' (2022-06-02): Add a lot of test vectors and improve handling of invalid contributions in reference code.
 * '''0.3.1''' (2022-05-24): Add ''NonceGen'' test vectors
 * '''0.3.0''' (2022-05-24): Hash ''i - 1'' instead of ''i''  in ''NonceGen''
