@@ -278,7 +278,7 @@ def nonce_agg(pubnonces: List[bytes]) -> bytes:
 
 SessionContext = namedtuple('SessionContext', ['aggnonce', 'pubkeys', 'tweaks', 'is_xonly', 'msg'])
 
-def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, int, Optional[Point], int]:
+def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, int, Point, int]:
     (aggnonce, pubkeys, tweaks, is_xonly, msg) = session_ctx
     Q, gacc_v, tacc_v = key_agg_internal(pubkeys, tweaks, is_xonly)
     b = int_from_bytes(tagged_hash('MuSig/noncecoef', aggnonce + bytes_from_point(Q) + msg)) % n
@@ -290,6 +290,7 @@ def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, in
         raise InvalidContributionError(None, "aggnonce")
     R_ = point_add(R_1, point_mul(R_2, b))
     R = R_ if not is_infinite(R_) else G
+    assert R is not None
     e = int_from_bytes(tagged_hash('BIP0340/challenge', bytes_from_point(R) + bytes_from_point(Q) + msg)) % n
     return (Q, gacc_v, tacc_v, b, R, e)
 
@@ -321,6 +322,8 @@ def sign(secnonce: bytes, sk: bytes, session_ctx: SessionContext) -> bytes:
     psig = bytes_from_int(s)
     R_1_ = point_mul(G, k_1_)
     R_2_ = point_mul(G, k_2_)
+    assert R_1_ is not None
+    assert R_2_ is not None
     pubnonce = cbytes(R_1_) + cbytes(R_2_)
     # Optional correctness check. The result of signing should pass signature verification.
     assert partial_sig_verify_internal(psig, pubnonce, bytes_from_point(P), session_ctx)
