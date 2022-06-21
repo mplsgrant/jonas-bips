@@ -159,11 +159,13 @@ def cpoint_extended(x: bytes) -> Optional[Point]:
     else:
         return cpoint(x)
 
-def key_agg(pubkeys: List[bytes], tweaks: List[bytes], is_xonly: List[bool]) -> bytes:
-    Q, _, _ = key_agg_internal(pubkeys, tweaks, is_xonly)
+KeyGenContext = namedtuple('KeyGenContext', ['Q', 'gacc', 'tacc'])
+
+def get_pk(keygen_ctx: KeyGenContext) -> bytes:
+    Q, _, _ = keygen_ctx
     return bytes_from_point(Q)
 
-def key_agg_internal(pubkeys: List[bytes], tweaks: List[bytes], is_xonly: List[bool]) -> Tuple[Point, int, int]:
+def key_agg(pubkeys: List[bytes]) -> KeyGenContext:
     pk2 = get_second_key(pubkeys)
     u = len(pubkeys)
     Q = infinity
@@ -177,10 +179,7 @@ def key_agg_internal(pubkeys: List[bytes], tweaks: List[bytes], is_xonly: List[b
     assert(Q is not None)
     gacc = 1
     tacc = 0
-    v = len(tweaks)
-    for i in range(v):
-        Q, gacc, tacc = apply_tweak(Q, gacc, tacc, tweaks[i], is_xonly[i])
-    return Q, gacc, tacc
+    return KeyGenContext(Q, gacc, tacc)
 
 def hash_keys(pubkeys: List[bytes]) -> bytes:
     return tagged_hash('KeyAgg list', b''.join(pubkeys))
@@ -202,22 +201,23 @@ def key_agg_coeff_internal(pubkeys: List[bytes], pk_: bytes, pk2: bytes) -> int:
         return 1
     return int_from_bytes(tagged_hash('KeyAgg coefficient', L + pk_)) % n
 
-def apply_tweak(Q: Point, gacc: int, tacc: int, tweak_i: bytes, is_xonly_i: bool) -> Tuple[Point, int, int]:
-    if len(tweak_i) != 32:
+def apply_tweak(keygen_ctx: KeyGenContext, tweak: bytes, is_xonly: bool) -> KeyGenContext:
+    if len(tweak) != 32:
         raise ValueError('The tweak must be a 32-byte array.')
-    if is_xonly_i and not has_even_y(Q):
+    Q, gacc, tacc = keygen_ctx
+    if is_xonly and not has_even_y(Q):
         g = n - 1
     else:
         g = 1
-    t_i = int_from_bytes(tweak_i)
-    if t_i >= n:
+    t = int_from_bytes(tweak)
+    if t >= n:
         raise ValueError('The tweak must be less than n.')
-    Q_i = point_add(point_mul(Q, g), point_mul(G, t_i))
-    if Q_i is None:
+    Q_ = point_add(point_mul(Q, g), point_mul(G, t))
+    if Q_ is None:
         raise ValueError('The result of tweaking cannot be infinity.')
-    gacc_i = g * gacc % n
-    tacc_i = (t_i + g * tacc) % n
-    return Q_i, gacc_i, tacc_i
+    gacc_ = g * gacc % n
+    tacc_ = (t + g * tacc) % n
+    return KeyGenContext(Q_, gacc_, tacc_)
 
 def bytes_xor(a: bytes, b: bytes) -> bytes:
     return bytes(x ^ y for x, y in zip(a, b))
@@ -278,9 +278,16 @@ def nonce_agg(pubnonces: List[bytes]) -> bytes:
 
 SessionContext = namedtuple('SessionContext', ['aggnonce', 'pubkeys', 'tweaks', 'is_xonly', 'msg'])
 
+def key_agg_and_tweak(pubkeys: List[bytes], tweaks: List[bytes], is_xonly: List[bool]):
+    keygen_ctx = key_agg(pubkeys)
+    v = len(tweaks)
+    for i in range(v):
+        keygen_ctx = apply_tweak(keygen_ctx, tweaks[i], is_xonly[i])
+    return keygen_ctx
+
 def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, int, Point, int]:
     (aggnonce, pubkeys, tweaks, is_xonly, msg) = session_ctx
-    Q, gacc_v, tacc_v = key_agg_internal(pubkeys, tweaks, is_xonly)
+    Q, gacc, tacc = key_agg_and_tweak(pubkeys, tweaks, is_xonly)
     b = int_from_bytes(tagged_hash('MuSig/noncecoef', aggnonce + bytes_from_point(Q) + msg)) % n
     try:
         R_1 = cpoint_extended(aggnonce[0:33])
@@ -292,7 +299,7 @@ def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, in
     R = R_ if not is_infinite(R_) else G
     assert R is not None
     e = int_from_bytes(tagged_hash('BIP0340/challenge', bytes_from_point(R) + bytes_from_point(Q) + msg)) % n
-    return (Q, gacc_v, tacc_v, b, R, e)
+    return (Q, gacc, tacc, b, R, e)
 
 def get_session_key_agg_coeff(session_ctx: SessionContext, P: Point) -> int:
     (_, pubkeys, _, _, _) = session_ctx
@@ -300,7 +307,7 @@ def get_session_key_agg_coeff(session_ctx: SessionContext, P: Point) -> int:
 
 # Callers should overwrite secnonce with zeros after calling sign.
 def sign(secnonce: bytes, sk: bytes, session_ctx: SessionContext) -> bytes:
-    (Q, gacc_v, _, b, R, e) = get_session_values(session_ctx)
+    (Q, gacc, _, b, R, e) = get_session_values(session_ctx)
     k_1_ = int_from_bytes(secnonce[0:32])
     k_2_ = int_from_bytes(secnonce[32:64])
     if not 0 < k_1_ < n:
@@ -316,8 +323,8 @@ def sign(secnonce: bytes, sk: bytes, session_ctx: SessionContext) -> bytes:
     assert P is not None
     a = get_session_key_agg_coeff(session_ctx, P)
     gp = 1 if has_even_y(P) else n - 1
-    g_v = 1 if has_even_y(Q) else n - 1
-    d = g_v * gacc_v * gp * d_ % n
+    g = 1 if has_even_y(Q) else n - 1
+    d = g * gacc * gp * d_ % n
     s = (k_1 + b * k_2 + e * a * d) % n
     psig = bytes_from_int(s)
     R_1_ = point_mul(G, k_1_)
@@ -335,7 +342,7 @@ def partial_sig_verify(psig: bytes, pubnonces: List[bytes], pubkeys: List[bytes]
     return partial_sig_verify_internal(psig, pubnonces[i], pubkeys[i], session_ctx)
 
 def partial_sig_verify_internal(psig: bytes, pubnonce: bytes, pk_: bytes, session_ctx: SessionContext) -> bool:
-    (Q, gacc_v, _, b, R, e) = get_session_values(session_ctx)
+    (Q, gacc, _, b, R, e) = get_session_values(session_ctx)
     s = int_from_bytes(psig)
     if s >= n:
         return False
@@ -343,8 +350,8 @@ def partial_sig_verify_internal(psig: bytes, pubnonce: bytes, pk_: bytes, sessio
     R_2_ = cpoint(pubnonce[33:66])
     R__ = point_add(R_1_, point_mul(R_2_, b))
     R_ = R__ if has_even_y(R) else point_negate(R__)
-    g_v = 1 if has_even_y(Q) else n - 1
-    g_ = g_v * gacc_v % n
+    g = 1 if has_even_y(Q) else n - 1
+    g_ = g * gacc % n
     P = point_mul(lift_x(pk_), g_)
     if P is None:
         return False
@@ -352,7 +359,7 @@ def partial_sig_verify_internal(psig: bytes, pubnonce: bytes, pk_: bytes, sessio
     return point_mul(G, s) == point_add(R_, point_mul(P, e * a % n))
 
 def partial_sig_agg(psigs: List[bytes], session_ctx: SessionContext) -> bytes:
-    (Q, _, tacc_v, _, R, e) = get_session_values(session_ctx)
+    (Q, _, tacc, _, R, e) = get_session_values(session_ctx)
     s = 0
     u = len(psigs)
     for i in range(u):
@@ -360,8 +367,8 @@ def partial_sig_agg(psigs: List[bytes], session_ctx: SessionContext) -> bytes:
         if s_i >= n:
             raise InvalidContributionError(i, "psig")
         s = (s + s_i) % n
-    g_v = 1 if has_even_y(Q) else n - 1
-    s = (s + e * g_v * tacc_v) % n
+    g = 1 if has_even_y(Q) else n - 1
+    s = (s + e * g * tacc) % n
     return bytes_from_point(R) + bytes_from_int(s)
 #
 # The following code is only used for testing.
@@ -396,33 +403,34 @@ def test_key_agg_vectors():
     ])
 
     # Vector 1
-    assert key_agg([X[0], X[1], X[2]], [], []) == expected[0]
+    assert get_pk(key_agg([X[0], X[1], X[2]])) == expected[0]
     # Vector 2
-    assert key_agg([X[2], X[1], X[0]], [], []) == expected[1]
+    assert get_pk(key_agg([X[2], X[1], X[0]])) == expected[1]
     # Vector 3
-    assert key_agg([X[0], X[0], X[0]], [], []) == expected[2]
+    assert get_pk(key_agg([X[0], X[0], X[0]])) == expected[2]
     # Vector 4
-    assert key_agg([X[0], X[0], X[1], X[1]], [], []) == expected[3]
+    assert get_pk(key_agg([X[0], X[0], X[1], X[1]])) == expected[3]
+
     # Vector 5: Invalid public key
     invalid_pk = bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000005')
     assertRaises(InvalidContributionError,
-                 lambda: key_agg([X[0], invalid_pk], [], []),
+                 lambda: key_agg([X[0], invalid_pk]),
                  lambda e: e.signer == 1 and e.contrib == "pubkey")
     # Vector 6: Public key exceeds field size
     invalid_pk = bytes.fromhex('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC30')
     assertRaises(InvalidContributionError,
-                 lambda: key_agg([X[0], invalid_pk], [], []),
+                 lambda: key_agg([X[0], invalid_pk]),
                  lambda e: e.signer == 1 and e.contrib == "pubkey")
     # Vector 7: Tweak is out of range
     invalid_tweak = bytes.fromhex('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141')
     assertRaises(ValueError,
-                 lambda: key_agg([X[0], X[1]], [invalid_tweak], [True]),
+                 lambda: key_agg_and_tweak([X[0], X[1]], [invalid_tweak], [True]),
                  lambda e: str(e) == 'The tweak must be less than n.')
     # Vector 8: Intermediate tweaking result is point at infinity
     G_ = bytes_from_point(G)
     coeff = bytes_from_int(n - key_agg_coeff([G_], G_))
     assertRaises(ValueError,
-                 lambda: key_agg([G_], [coeff], [False]),
+                 lambda: key_agg_and_tweak([G_], [coeff], [False]),
                  lambda e: str(e) == 'The result of tweaking cannot be infinity.')
 
 def test_nonce_gen_vectors():
@@ -764,28 +772,28 @@ def test_sig_agg_vectors():
     session_ctx = SessionContext(aggnonce[0], [X[0], X[1]], [], [], msg)
     sig = partial_sig_agg([psig[0], psig[1]], session_ctx)
     assert sig == expected[0]
-    aggpk = key_agg([X[0], X[1]], [], [])
+    aggpk = get_pk(key_agg([X[0], X[1]]))
     assert schnorr_verify(msg, aggpk, sig)
 
     # Vector 2
     session_ctx = SessionContext(aggnonce[1], [X[0], X[2]], [], [], msg)
     sig = partial_sig_agg([psig[2], psig[3]], session_ctx)
     assert sig == expected[1]
-    aggpk = key_agg([X[0], X[2]], [], [])
+    aggpk = get_pk(key_agg([X[0], X[2]]))
     assert schnorr_verify(msg, aggpk, sig)
 
     # Vector 3
     session_ctx = SessionContext(aggnonce[2], [X[0], X[2]], [tweaks[0]], [False], msg)
     sig = partial_sig_agg([psig[4], psig[5]], session_ctx)
     assert sig == expected[2]
-    aggpk = key_agg([X[0], X[2]], [tweaks[0]], [False])
+    aggpk = get_pk(key_agg_and_tweak([X[0], X[2]], [tweaks[0]], [False]))
     assert schnorr_verify(msg, aggpk, sig)
 
     # Vector 4
     session_ctx = SessionContext(aggnonce[3], [X[0], X[3]], tweaks, [True, False, True], msg)
     sig = partial_sig_agg([psig[6], psig[7]], session_ctx)
     assert sig == expected[3]
-    aggpk = key_agg([X[0], X[3]], tweaks, [True, False, True])
+    aggpk = get_pk(key_agg_and_tweak([X[0], X[3]], tweaks, [True, False, True]))
     assert schnorr_verify(msg, aggpk, sig)
 
     # Vector 5: Partial signature is invalid because it exceeds group size
@@ -814,7 +822,7 @@ def test_sign_and_verify_random(iters):
         v = secrets.randbelow(4)
         tweaks = [secrets.token_bytes(32) for _ in range(v)]
         is_xonly = [secrets.choice([False, True]) for _ in range(v)]
-        aggpk = key_agg(pubkeys, tweaks, is_xonly)
+        aggpk = get_pk(key_agg_and_tweak(pubkeys, tweaks, is_xonly))
 
         # Use a non-repeating counter for extra_in
         secnonce_1, pubnonce_1 = nonce_gen(sk_1, aggpk, msg, i.to_bytes(4, 'big'))
