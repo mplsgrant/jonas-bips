@@ -86,7 +86,10 @@ This party would have complete control over the aggregate public key and message
 
 ==== Public Key Aggregation  ====
 
-The output of ''KeyAgg'' is dependent on the order of the input public keys.
+The output of the ''KeyAgg'' algorithm is a [[#keygen-context|KeyGen Context]] which stores information required for tweaking (see [[#tweaking|below]]).
+In order to obtain the aggregate public key, implementations call the ''GetPubkey'' function with the KeyGen Context.
+
+The aggregate key produced by ''KeyAgg'' is dependent on the order of the input public keys.
 If the application does not have a canonical order of the signers, the public keys can be sorted with the ''KeySort'' algorithm to ensure that the aggregate key is independent of the order of signers.
 
 The same public key is allowed to occur more than once in the input of ''KeyAgg'' and ''KeySort''.
@@ -145,6 +148,10 @@ However, if ''PartialSigVerify'' succeeds for all partial signatures then ''Part
 
 ==== Tweaking ====
 
+The aggregate public key can be ''tweaked'', which modifies the key as defined in the [[#tweaking-definition|Tweaking Definition]] subsection.
+In order to apply a tweak, the KeyGen Context output by ''KeyAgg'' is provided to the ''ApplyTweak'' algorithm with the ''is_xonly_t'' argument set to false for ordinary tweaking and true for X-only tweaking.
+The resulting KeyGen Context can be used to apply another tweak with ''ApplyTweak'' or obtain the aggregate public key with ''GetPubkey''.
+
 In addition to public keys, the ''KeyAgg'' algorithm accepts tweaks, which modify the aggregate public key as defined in the [[#tweaking-definition|Tweaking Definition]] subsection.
 For example, if ''KeyAgg'' is run with ''v = 2'', ''is_xonly_t<sub>1</sub> = false'', ''is_xonly_t<sub>2</sub> = true'', then the aggregate key is first ordinarily tweaked with ''tweak<sub>1</sub>'' and then X-only tweaked with ''tweak<sub>2</sub>''.
 
@@ -152,6 +159,9 @@ The purpose of specifying tweaking is to ensure compatibility with existing uses
 The MuSig2 algorithms take arbitrary tweaks as input but accepting arbitrary tweaks may negatively affect the protocol's security.
 Instead, signers should obtain the tweaks according to other specifications.
 This typically involves deriving the tweaks from a hash of the aggregate public key and some other information.
+Depending on the specific scheme that is used for tweaking, the aggregate public key is required in different formats.
+In addition to ''GetPubkey'' (X-only format), this specification defines the ''GetPubkey33'' algorithm which returns the aggregate public key in ''compressed'' format.
+This format is 33 bytes in size and is used, for example, in [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32].
 
 Ordinary tweaking can be used to derive child public keys from an aggregate public key using [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32].
 On the other hand, X-only tweaking is required for Taproot tweaking per [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341].
@@ -216,7 +226,26 @@ The following conventions are used, with constants as defined for [https://www.s
 
 === Specification ===
 
-==== Key Sorting ====
+==== Key Generation ====
+
+===== KeyGen Context =====
+
+The KeyGen Context is a data structure consisting of the following elements:
+* The point ''Q'' representing the aggregate and potentially tweaked public key: an elliptic curve point
+* The accumulated tweak ''tacc'': an integer with ''0 &le; tacc < n''
+* The value ''gacc'' : 1 or -1 mod n
+
+We write "Let ''(Q, gacc, tacc) = keygen_ctx''" to assign names to the elements of a KeyGen Context.
+
+'''''GetPubkey(keygen_ctx)''''':
+* Let ''(Q, _, _) = keygen_ctx''
+* Return ''bytes(Q)''
+
+'''''GetPubkey33(keygen_ctx)''''':
+* Let ''(Q, _, _) = keygen_ctx''
+* Return ''cbytes(Q)''
+
+===== Key Sorting =====
 
 Input:
 * The number ''u'' of public keys with ''0 < u < 2^32''
@@ -225,31 +254,22 @@ Input:
 '''''KeySort(pk<sub>1..u</sub>)''''':
 * Return ''pk<sub>1..u</sub>'' sorted in lexicographical order.
 
-==== Key Aggregation ====
+===== Key Aggregation =====
 
 Input:
 * The number ''u'' of public keys with ''0 < u < 2^32''
 * The public keys ''pk<sub>1..u</sub>'': ''u'' 32-byte arrays
-* The number ''v'' of tweaks with ''0 &le; v < 2^32''
-* The tweaks ''tweak<sub>1..v</sub>'': ''v'' 32-byte arrays
-* The tweak modes ''is_xonly_t<sub>1..v</sub>'' : ''v'' booleans
 
-'''''KeyAgg(pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>)''''':
-* Let ''(Q,_,_) = KeyAggInternal(pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>)''; fail if that fails.
-* Return ''bytes(Q)''.
-
-'''''KeyAggInternal(pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>)''''':
+'''''KeyAgg(pk<sub>1..u</sub>)''''':
 * Let ''pk2 = GetSecondKey(pk<sub>1..u</sub>)''
 * For ''i = 1 .. u'':
 ** Let ''P<sub>i</sub> = point(pk<sub>i</sub>)''; fail if that fails.
 ** Let ''a<sub>i</sub> = KeyAggCoeffInternal(pk<sub>1..u</sub>, pk<sub>i</sub>, pk2)''.
-* Let ''Q<sub>0</sub> = a<sub>1</sub>⋅P<sub>1</sub> + a<sub>2</sub>⋅P<sub>2</sub> + ... + a<sub>u</sub>⋅P<sub>u</sub>''
-* Fail if ''is_infinite(Q<sub>0</sub>)''.
-* Let ''gacc<sub>0</sub> = 1''
-* Let ''tacc<sub>0</sub> = 0''
-* For ''i = 1 .. v'':
-** Let ''(Q<sub>i</sub>, gacc<sub>i</sub>, tacc<sub>i</sub>) = ApplyTweak(Q<sub>i-1</sub>, gacc<sub>i-1</sub>, tacc<sub>i-1</sub>, tweak<sub>i</sub>, is_xonly_t<sub>i</sub>)''; fail if that fails
-* Return ''(Q<sub>v</sub>, gacc<sub>v</sub>, tacc<sub>v</sub>)''.
+* Let ''Q = a<sub>1</sub>⋅P<sub>1</sub> + a<sub>2</sub>⋅P<sub>2</sub> + ... + a<sub>u</sub>⋅P<sub>u</sub>''
+* Fail if ''is_infinite(Q)''.
+* Let ''gacc = 1''
+* Let ''tacc = 0''
+* Return ''keygen_ctx = (Q, gacc, tacc)''.
 
 '''''HashKeys(pk<sub>1..u</sub>)''''':
 * Return ''hash<sub>KeyAgg list</sub>(pk<sub>1</sub> || pk<sub>2</sub> || ... || pk<sub>u</sub>)''
@@ -270,16 +290,25 @@ Input:
 ** Return 1
 * Return ''int(hash<sub>KeyAgg coefficient</sub>(L || pk')) mod n''<ref>The key aggregation coefficient is computed by hashing the public key instead of its index, which requires one more invocation of the SHA-256 compression function. However, it results in significantly simpler implementations because signers do not need to translate between public key indices before and after sorting.</ref>
 
-'''''ApplyTweak(Q<sub>i-1</sub>, gacc<sub>i-1</sub>, tacc<sub>i-1</sub>, tweak<sub>i</sub>, is_xonly_t<sub>i</sub>)''''':
-* If ''is_xonly_t<sub>i</sub>'' and ''not has_even_y(Q<sub>i-1</sub>)'':
-** Let ''g<sub>i-1</sub> = -1 mod n''
-* Else: let ''g<sub>i-1</sub> = 1''
-* Let ''t<sub>i</sub> = int(tweak<sub>i</sub>)''; fail if ''t &ge; n''
-* Let ''Q<sub>i</sub> = g<sub>i-1</sub>⋅Q<sub>i-1</sub> + t<sub>i</sub>⋅G''
-** Fail if ''is_infinite(Q<sub>i</sub>)''
-* Let ''gacc<sub>i</sub> = g<sub>i-1</sub>⋅gacc<sub>i-1</sub> mod n''
-* Let ''tacc<sub>i</sub> = t<sub>i</sub> + g<sub>i-1</sub>⋅tacc<sub>i-1</sub> mod n''
-* Return ''(Q<sub>i</sub>, gacc<sub>i</sub>, tacc<sub>i</sub>)''
+===== Applying Tweaks =====
+
+Input:
+* The ''keygen_ctx'': a [[#keygen-context|KeyGen Context]] data structure
+* The ''tweak'': a 32-byte array
+* The tweak mode ''is_xonly_t'': a boolean
+
+'''''ApplyTweak(keygen_ctx, tweak, is_xonly_t)''''':
+* Let ''(Q, gacc, tacc) = keygen_ctx''
+* If ''is_xonly_t'' and ''not has_even_y(Q)'':
+** Let ''g = -1 mod n''
+* Else:
+** Let ''g = 1''
+* Let ''t = int(tweak)''; fail if ''t &ge; n''
+* Let ''Q' = g⋅Q + t⋅G''
+** Fail if ''is_infinite(Q')''
+* Let ''gacc' = g⋅gacc mod n''
+* Let ''tacc' = t + g⋅tacc mod n''
+* Return ''keygen_ctx' = (Q', gacc', tacc')''
 
 ==== Nonce Generation ====
 
@@ -329,7 +358,10 @@ We write "Let ''(aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xon
 
 '''''GetSessionValues(session_ctx)''''':
 * Let ''(aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m) = session_ctx''
-* Let ''(Q, gacc<sub>v</sub>, tacc<sub>v</sub>) = KeyAggInternal(pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>)''; fail if that fails
+* Let ''keygen_ctx<sub>0</sub> = KeyAgg(pk<sub>1..u</sub>)''; fail if that fails
+* For ''i = 1 .. v'':
+** Let ''keygen_ctx<sub>i</sub> = ApplyTweak(keygen_ctx<sub>i-1</sub>, tweak<sub>i</sub>, is_xonly_t<sub>i</sub>)''; fail if that fails
+* Let ''(Q, gacc, tacc) = keygen_ctx<sub>v</sub>''
 * Let ''b = int(hash<sub>MuSig/noncecoef</sub>(aggnonce || bytes(Q) || m)) mod n''
 * Let ''R<sub>1</sub> = cpoint_extended(aggnonce[0:33]), R<sub>2</sub> = cpoint_extended(aggnonce[33:66])''; fail if that fails
 * Let ''R' = R<sub>1</sub> + b⋅R<sub>2</sub>''
@@ -338,8 +370,7 @@ We write "Let ''(aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xon
 * Else:
 ** Let ''R = R' ''
 * Let ''e = int(hash<sub>BIP0340/challenge</sub>(bytes(R) || bytes(Q) || m)) mod n''
-* Return ''(Q, gacc<sub>v</sub>, tacc<sub>v</sub>, b, R, e)''
-
+* Return ''(Q, gacc, tacc, b, R, e)''
 
 '''''GetSessionKeyAggCoeff(session_ctx, P)''''':
 * Let ''(_, u, pk<sub>1..u</sub>, _, _, _, _) = session_ctx''
@@ -353,7 +384,7 @@ Input:
 * The ''session_ctx'': a [[#session-context|Session Context]] data structure
 
 '''''Sign(secnonce, sk, session_ctx)''''':
-* Let ''(Q, gacc<sub>v</sub>, _, b, R, e) = GetSessionValues(session_ctx)''; fail if that fails
+* Let ''(Q, gacc, _, b, R, e) = GetSessionValues(session_ctx)''; fail if that fails
 * Let ''k'<sub>1</sub> = int(secnonce[0:32]), k'<sub>2</sub> = int(secnonce[32:64])''
 * Fail if ''k'<sub>i</sub> = 0'' or ''k'<sub>i</sub> &ge; n'' for ''i = 1..2''
 * Let ''k<sub>1</sub> = k'<sub>1</sub>, k<sub>2</sub> = k'<sub>2</sub> '' if ''has_even_y(R)'', otherwise let ''k<sub>1</sub> = n - k'<sub>1</sub>, k<sub>2</sub> = n - k'<sub>2</sub>''
@@ -362,8 +393,8 @@ Input:
 * Let ''P = d'⋅G''
 * Let ''a = GetSessionKeyAggCoeff(session_ctx, P)''; fail if that fails
 * Let ''gp = 1'' if ''has_even_y(P)'', otherwise let ''gp = -1 mod n''
-* Let ''g<sub>v</sub> = 1'' if ''has_even_y(Q)'', otherwise let ''g<sub>v</sub> = -1 mod n''
-* <div id="Sign negation"></div>Let ''d = g<sub>v</sub>⋅gacc<sub>v</sub>⋅gp⋅d' mod n'' (See [[negation-of-the-secret-key-when-signing|Negation Of The Secret Key When Signing]])
+* Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
+* <div id="Sign negation"></div>Let ''d = g⋅gacc⋅gp⋅d' mod n'' (See [[negation-of-the-secret-key-when-signing|Negation Of The Secret Key When Signing]])
 * Let ''s = (k<sub>1</sub> + b⋅k<sub>2</sub> + e⋅a⋅d) mod n''
 * Let ''psig = bytes(32, s)''
 * Let ''pubnonce = cbytes(k'<sub>1</sub>⋅G) || cbytes(k'<sub>2</sub>⋅G)''
@@ -390,13 +421,13 @@ Input:
 * Return success iff no failure occurred before reaching this point.
 
 '''''PartialSigVerifyInternal(psig, pubnonce, pk<sup>*</sup>, session_ctx)''''':
-* Let ''(Q, gacc<sub>v</sub>, _, b, R, e) = GetSessionValues(session_ctx)''; fail if that fails
+* Let ''(Q, gacc, _, b, R, e) = GetSessionValues(session_ctx)''; fail if that fails
 * Let ''s = int(psig)''; fail if ''s &ge; n''
 * Let ''R<sup>*</sup><sub>1</sub> = cpoint(pubnonce[0:33]), R<sup>*</sup><sub>2</sub> = cpoint(pubnonce[33:66])''
 * Let ''R<sup>*</sup>' = R<sup>*</sup><sub>1</sub> + b⋅R<sup>*</sup><sub>2</sub>''
 * Let ''R<sup>*</sup> = R<sup>*</sup>' '' if ''has_even_y(R)'', otherwise let ''R<sup>*</sup> = -R<sup>*</sup>' ''
-* Let ''g<sub>v</sub> = 1'' if ''has_even_y(Q)'', otherwise let ''g<sub>v</sub> = -1 mod n''
-* Let ''g' = g<sub>v</sub>⋅gacc<sub>v</sub> mod n''
+* Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
+* Let ''g' = g⋅gacc mod n''
 * <div id="SigVerify negation"></div>Let ''P = g'⋅point(pk<sup>*</sup>)''; fail if that fails (See [[#negation-of-the-public-key-when-partially-verifying|Negation Of The Public Key When Partially Verifying]])
 * Let ''a = GetSessionKeyAggCoeff(session_ctx, P)''; fail if that fails
 * Fail if ''s⋅G &ne; R<sup>*</sup> + e⋅a⋅P''
@@ -410,11 +441,11 @@ Input:
 * The ''session_ctx'': a [[#session-context|Session Context]] data structure
 
 '''''PartialSigAgg(psig<sub>1..u</sub>, session_ctx)''''':
-* Let ''(Q, _, tacc<sub>v</sub>, _, _, R, e) = GetSessionValues(session_ctx)''; fail if that fails
+* Let ''(Q, _, tacc, _, _, R, e) = GetSessionValues(session_ctx)''; fail if that fails
 * For ''i = 1 .. u'':
 ** Let ''s<sub>i</sub> = int(psig<sub>i</sub>)''; fail if ''s<sub>i</sub> &ge; n''.
-* Let ''g<sub>v</sub> = 1'' if ''has_even_y(Q)'', otherwise let ''g<sub>v</sub> = -1 mod n''
-* Let ''s = s<sub>1</sub> + ... + s<sub>u</sub> + e⋅g<sub>v</sub>⋅tacc<sub>v</sub> mod n''
+* Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
+* Let ''s = s<sub>1</sub> + ... + s<sub>u</sub> + e⋅g⋅tacc mod n''
 * Return ''sig = ''bytes(R) || bytes(32, s)''
 
 === Test Vectors and Reference Code ===
@@ -444,27 +475,27 @@ In order to produce a partial signature for an X-only public key that is an aggr
 
 <poem>
 The following elliptic curve points arise as intermediate steps in the MuSig2 protocol:
-• ''P<sub>i</sub>'' as computed in ''KeyAggInternal'' is the point corresponding to the ''i''-th signer's X-only public key. Defining ''d'<sub>i</sub>'' to be the ''i''-th signer's secret key as an integer, i.e. the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
+• ''P<sub>i</sub>'' as computed in ''KeyAgg'' is the point corresponding to the ''i''-th signer's X-only public key. Defining ''d'<sub>i</sub>'' to be the ''i''-th signer's secret key as an integer, i.e. the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
     ''P<sub>i</sub> = with_even_y(d'<sub>i</sub>⋅G) ''.
-• ''Q<sub>0</sub>'' is an aggregate of the signers' public keys and defined in ''KeyAggInternal''  as
+• ''Q<sub>0</sub>'' is the aggregate of the signers' public keys. It is identical to value ''Q'' computed in ''KeyAgg'' and therefore defined as
     ''Q<sub>0</sub> = a<sub>1</sub>⋅P<sub>1</sub> + a<sub>2</sub>⋅P<sub>2</sub> + ... + a<sub>u</sub>⋅P<sub>u</sub>''.
-• ''Q<sub>i</sub>'' as computed in ''ApplyTweak'' for ''1 &le; i &le; v'' is the tweaked public key after the ''i''-th tweaking operation. It holds that
+• ''Q<sub>i</sub>'' is the tweaked public key after the ''i''-th execution of ''ApplyTweak'' for ''1 &le; i &le; v''. It holds that
     ''Q<sub>i</sub> = f(i-1) + t<sub>i</sub>⋅G'' for ''i = 1, ..., v'' where
         ''f(i-1) := with_even_y(Q<sub>i-1</sub>)'' if ''is_xonly_t<sub>i</sub>'' and
         ''f(i-1) := Q<sub>i-1</sub>'' otherwise.
-• ''with_even_y(Q<sub>v</sub>)'' is the final result of ''KeyAgg''.
+• ''with_even_y(Q<sub>v</sub>)'' is the final result of the key aggregation and tweaking operations. It corresponds to the output of ''GetPubkey'' applied on the final KeyAgg Context.
 </poem>
 
-The signer's goal is to produce a partial signature corresponding to the final result of ''KeyAgg'', i.e. the X-only public key ''with_even_y(Q<sub>v</sub>)''.
+The signer's goal is to produce a partial signature corresponding to the final result of key aggregation and tweaking, i.e. the X-only public key ''with_even_y(Q<sub>v</sub>)''.
 
 <poem>
 We define ''gp<sub>i</sub>'' for ''1 &le; i &le; u'' to be ''gp '' as computed in the ''Sign'' algorithm of the ''i''-th signer. Note that ''gp<sub>i</sub>'' indicates whether the ''i''-th signer needed to negate their secret key to produce an X-only public key. In particular,
     ''P<sub>i</sub> = gp<sub>i</sub>⋅d'<sub>i</sub>⋅G''.
 
-For ''0 &le; i &le; v-1'', the ''ApplyTweak'' algorithm called from ''KeyAggInternal'' sets ''g<sub>i</sub>'' to ''-1 mod n'' if and only if ''is_xonly_t<sub>i+1</sub>'' is true and ''Q<sub>i</sub>'' has an odd Y coordinate. In other words, ''g<sub>i</sub>'' indicates whether ''Q<sub>i</sub>'' needed to be negated to apply an X-only tweak:
-    ''f(i) = g<sub>i</sub>⋅Q<sub>i</sub>'' for ''0 &le; i &le; v - 1''.
+For ''1 &le; i &le; v'', we denote the value ''g'' computed in the ''i''-th execution of ''ApplyTweak'' by ''g<sub>i-1</sub>''. Therefore, ''g<sub>i-1</sub>'' is ''-1 mod n'' if and only if ''is_xonly_t<sub>i</sub>'' is true and ''Q<sub>i-1</sub>'' has an odd Y coordinate. In other words, ''g<sub>i-1</sub>'' indicates whether ''Q<sub>i-1</sub>'' needed to be negated to apply an X-only tweak:
+    ''f(i-1) = g<sub>i-1</sub>⋅Q<sub>i-1</sub>'' for ''1 &le; i &le; v''.
 
-Furthermore, the ''Sign'' and ''PartialSigVerify'' algorithms set ''g<sub>v</sub>'' depending on whether ''Q<sub>v</sub>'' needed to be negated to produce the (X-only) final output of ''KeyAgg':
+Furthermore, the ''Sign'' and ''PartialSigVerify'' algorithms set value ''g'' depending on whether ''Q<sub>v</sub>'' needed to be negated to produce the (X-only) final output. For consistency this value ''g'' is is referred to as ''g<sub>v</sub>'' in this section.
     ''with_even_y(Q<sub>v</sub>) = g<sub>v</sub>⋅Q<sub>v</sub>''.
 </poem>
 
@@ -478,14 +509,14 @@ So, the (X-only) final public key is
         = g<sub>v</sub>⋅g<sub>v-1</sub>⋅f(v-2) + (sum<sub>i=v-1..v</sub> t<sub>i</sub>⋅prod<sub>j=i..v</sub> g<sub>j</sub>)⋅G
         = g<sub>v</sub>⋅g<sub>v-1</sub>⋅...⋅g<sub>1</sub>⋅f(0) + (sum<sub>i=1..v</sub> t<sub>i</sub>⋅prod<sub>j=i..v</sub> g<sub>j</sub>)⋅G
         = g<sub>v</sub>⋅...⋅g<sub>0</sub>⋅Q<sub>0</sub> + g<sub>v</sub>⋅tacc<sub>v</sub>⋅G''
-    where ''tacc<sub>i</sub>'' is computed by ''KeyAggInternal'' and ''ApplyTweak'' as follows:
+    where ''tacc<sub>i</sub>'' is computed by ''KeyAgg'' and ''ApplyTweak'' as follows:
       ''tacc<sub>0</sub> = 0
       tacc<sub>i</sub> = t<sub>i</sub> + g<sub>i-1</sub>⋅tacc<sub>i-1</sub> for i=1..v mod n''
     for which it holds that ''g<sub>v</sub>⋅tacc<sub>v</sub> = sum<sub>i=1..v</sub> t<sub>i</sub>⋅prod<sub>j=i..v</sub> g<sub>j</sub>''.
 </poem>
 
 <poem>
-''KeyAggInternal'' and ''ApplyTweak'' compute
+''KeyAgg'' and ''ApplyTweak'' compute
     ''gacc<sub>0</sub> = 1
     gacc<sub>i</sub> = g<sub>i-1</sub>⋅gacc<sub>i-1</sub> for i=1..v mod n''
 So we can rewrite above equation for the final public key as
@@ -567,6 +598,7 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
+* '''0.5.0''' (2022-06-21): Separate ApplyTweak from KeyAgg and introduce KeyGen Context.
 * '''0.4.0''' (2022-06-20): Allow the output of NonceAgg to be infinity and add test vectors
 * '''0.3.2''' (2022-06-02): Add a lot of test vectors and improve handling of invalid contributions in reference code.
 * '''0.3.1''' (2022-05-24): Add ''NonceGen'' test vectors
