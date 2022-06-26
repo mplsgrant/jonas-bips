@@ -677,17 +677,17 @@ def test_tweak_vectors():
     # we do here for testing purposes, can leak the secret key.
     assert partial_sig_verify(expected[0], [pnonce[1], pnonce[2], pnonce[0]], [X[0], X[1], pk], tweaks[:1], [True], msg, 2)
 
-    # Vector 2: A single ordinary tweak
+    # Vector 2: A single plain tweak
     session_ctx = SessionContext(aggnonce, [X[0], X[1], pk], tweaks[:1], [False], msg)
     assert sign(secnonce, sk, session_ctx) == expected[1]
     assert partial_sig_verify(expected[1], [pnonce[1], pnonce[2], pnonce[0]], [X[0], X[1], pk], tweaks[:1], [False], msg, 2)
 
-    # Vector 3: An ordinary tweak followed by an x-only tweak
+    # Vector 3: A plain tweak followed by an x-only tweak
     session_ctx = SessionContext(aggnonce, [X[0], X[1], pk], tweaks[:2], [False, True], msg)
     assert sign(secnonce, sk, session_ctx) == expected[2]
     assert partial_sig_verify(expected[2], [pnonce[1], pnonce[2], pnonce[0]], [X[0], X[1], pk], tweaks[:2], [False, True], msg, 2)
 
-    # Vector 4: Four tweaks: x-only, ordinary, x-only, ordinary
+    # Vector 4: Four tweaks: x-only, plain, x-only, plain
     session_ctx = SessionContext(aggnonce, [X[0], X[1], pk], tweaks[:4], [True, False, True, False], msg)
     assert sign(secnonce, sk, session_ctx) == expected[3]
     assert partial_sig_verify(expected[3], [pnonce[1], pnonce[2], pnonce[0]], [X[0], X[1], pk], tweaks[:4], [True, False, True, False], msg, 2)

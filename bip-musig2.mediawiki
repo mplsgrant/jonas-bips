@@ -46,7 +46,7 @@ The MuSig2 variant in this specification stands out by combining all of the foll
 === Design ===
 
 * '''Compatibility with BIP340''': The aggregate public key created as part of this MuSig2 specification is a BIP340 X-only public key, and the signature output at the end of the protocol is a BIP340 signature that passes BIP340 verification for the aggregate key and a message. The public keys that are input to the key aggregation algorithm are also X-only public keys. Compared to compressed serialization, this adds complexity to the specification, but as X-only keys are becoming more common, the full key may not be available.
-* '''Tweaking for BIP32 derivations and Taproot''': The specification supports tweaking aggregate public keys and signing for tweaked aggregate public keys. We distinguish two modes of tweaking: ''Ordinary'' tweaking can be used to derive child aggregate public keys per [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32]. ''X-only'' tweaking, on the other hand, allows creating a [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] tweak to add script paths to a Taproot output. See section [[#tweaking|Tweaking]] below for details.
+* '''Tweaking for BIP32 derivations and Taproot''': The specification supports tweaking aggregate public keys and signing for tweaked aggregate public keys. We distinguish two modes of tweaking: ''Plain'' tweaking can be used to derive child aggregate public keys per [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32]. ''X-only'' tweaking, on the other hand, allows creating a [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] tweak to add script paths to a Taproot output. See section [[#tweaking|Tweaking]] below for details.
 * '''Non-interactive signing with preprocessing''': The first communication round, exchanging the nonces, can happen before the message or even the exact set of signers is determined. Therefore, the signers can view it as a preprocessing step. Later, when the parameters of the signing session are chosen, they can send partial signatures without additional interaction.
 * '''Key aggregation optionally independent of order''': The output of the key aggregation algorithm depends on the order of the input public keys. The specification defines a function to sort the public keys before key aggregation. This will ensure the same output, independent of the initial order. Key aggregation does not sort the public keys by default because applications often already have a canonical order of signers. Nonetheless, applications using this specification can mandate sorting before aggregation<ref>Applications that sort input public keys before aggregation should ensure that the sort implementation is reasonably efficient, and in particular does not degenerate to quadratic runtime on pathological inputs.</ref>.
 * '''Third party nonce aggregation''': Instead of every signer sending their nonce to every other signer, it is possible to use an untrusted third party that collects all signers' nonces, computes an aggregate nonce, and broadcasts it to the signers. This reduces the communication complexity from quadratic to linear in the number of signers. If the aggregator sends an incorrect aggregate nonce, the signing session will fail to produce a valid Schnorr signature. However, the aggregator cannot negatively affect the unforgeability of the scheme.
@@ -149,7 +149,7 @@ However, if ''PartialSigVerify'' succeeds for all partial signatures then ''Part
 ==== Tweaking ====
 
 The aggregate public key can be ''tweaked'', which modifies the key as defined in the [[#tweaking-definition|Tweaking Definition]] subsection.
-In order to apply a tweak, the KeyGen Context output by ''KeyAgg'' is provided to the ''ApplyTweak'' algorithm with the ''is_xonly_t'' argument set to false for ordinary tweaking and true for X-only tweaking.
+In order to apply a tweak, the KeyGen Context output by ''KeyAgg'' is provided to the ''ApplyTweak'' algorithm with the ''is_xonly_t'' argument set to false for plain tweaking and true for X-only tweaking.
 The resulting KeyGen Context can be used to apply another tweak with ''ApplyTweak'' or obtain the aggregate public key with ''GetPubkey''.
 
 In addition to public keys, the ''KeyAgg'' algorithm accepts tweaks, which modify the aggregate public key as defined in the [[#tweaking-definition|Tweaking Definition]] subsection.
@@ -163,7 +163,7 @@ Depending on the specific scheme that is used for tweaking, the aggregate public
 In addition to ''GetPubkey'' (X-only format), this specification defines the ''GetPubkey33'' algorithm which returns the aggregate public key in ''compressed'' format.
 This format is 33 bytes in size and is used, for example, in [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32].
 
-Ordinary tweaking can be used to derive child public keys from an aggregate public key using [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32].
+Plain tweaking can be used to derive child public keys from an aggregate public key using [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32].
 On the other hand, X-only tweaking is required for Taproot tweaking per [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341].
 A Taproot-tweaked public key commits to a ''script path'', allowing users to create transaction outputs that are spendable either with a MuSig2 multi-signature or by providing inputs that satisfy the script path.
 
@@ -463,7 +463,7 @@ Input:
 * ''P'': a point
 * The tweak ''t'': an integer with ''0 &le; t < n ''
 
-'''''ApplyOrdinaryTweak(P, t)''''':
+'''''ApplyPlainTweak(P, t)''''':
 * Return ''P + t⋅G''
 
 '''''ApplyXonlyTweak(P, t)''''':
@@ -598,6 +598,7 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
+* '''0.5.1''' (2022-06-22): Rename "ordinary" tweaking to "plain" tweaking.
 * '''0.5.0''' (2022-06-21): Separate ApplyTweak from KeyAgg and introduce KeyGen Context.
 * '''0.4.0''' (2022-06-20): Allow the output of NonceAgg to be infinity and add test vectors
 * '''0.3.2''' (2022-06-02): Add a lot of test vectors and improve handling of invalid contributions in reference code.
