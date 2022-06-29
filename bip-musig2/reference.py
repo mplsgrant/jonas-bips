@@ -427,31 +427,24 @@ def test_key_agg_vectors():
         assertRaises(exception, lambda: key_agg_and_tweak(pubkeys, tweaks, is_xonly), except_fn)
 
 def test_nonce_gen_vectors():
-    def fill(i):
-        return i.to_bytes(1, byteorder='big') * 32
-    rand_ = fill(0)
-    msg = fill(1)
-    sk = fill(2)
-    aggpk = fill(7)
-    # This aggpk is a valid public key
-    assert(lift_x(aggpk) != None)
-    extra_in = fill(8)
+    with open('nonce_gen_vectors.json') as f:
+        test_data = json.load(f)
 
-    expected = fromhex_all([
-        'BC6C683EBBCC39DCB3C29B3D010D2AAA7C86CFB562FC41ED9A460EE061013E75' +
-        'FB4AD2F0B816713269800D018803906D5481E00A940EAB4F4AC49B4A372EB0F4',
-        'AAC4BFD707F4953B4063851D7E4AAD5C59D5D0BFB0E71012788A85698B5ACF8F' +
-        '11834D5051928424BA501C8CD064F3F942F8D4A07D8A2ED79F153E4ABD9EBBE9',
-        '7B3B5A002356471AF0E961DE2549C121BD0D48ABCEEDC6E034BDDF86AD3E0A18' +
-        '7ECEE674CEF7364B0BC4BEEFB8B66CAD89F98DE2F8C5A5EAD5D1D1E4BD7D04CD'
-    ])
+    for test_case in test_data["test_cases"]:
+        def get_value(key):
+            if test_case[key] is not None:
+                return bytes.fromhex(test_case[key])
+            else:
+                return None
 
-    # Vector 1
-    assert nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)[0] == expected[0]
-    # Vector 2
-    assert nonce_gen_internal(rand_, sk, aggpk, b'', extra_in)[0] == expected[1]
-    # Vector 3
-    assert nonce_gen_internal(rand_, None, None, None, None)[0] == expected[2]
+        rand_ = get_value("rand_")
+        sk = get_value("sk")
+        aggpk = get_value("aggpk")
+        msg = get_value("msg")
+        extra_in = get_value("extra_in")
+        expected = get_value("expected")
+
+        assert nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)[0] == expected
 
 def test_nonce_agg_vectors():
     pnonce = fromhex_all([
