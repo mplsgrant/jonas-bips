@@ -28,10 +28,11 @@ MuSig2 is a multi-signature scheme that allows multiple signers to create a sing
 Signing requires interaction between ''all'' signers involved in key aggregation.
 (MuSig2 is a ''n-of-n'' multi-signature scheme and not a ''t-of-n'' threshold-signature scheme.)
 
-The primary motivation for MuSig2 is the activation of Taproot ([https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341]) on the Bitcoin network, which introduced the ability to authorize transactions with Schnorr signatures.
-This standard allows the creation of aggregate public keys that can be used in Taproot outputs.
+The primary motivation is to create a standard that allows users of different software projects to jointly control Taproot outputs ([https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341]).
+Such an output contains a public key which, in this case, would be the aggregate of all users' public keys.
+It can be spent using MuSig2 to produce a signature for the key-based spending path.
 
-The on-chain footprint of a MuSig2 Taproot output is a single BIP340 public key, and a transaction spending the output only requires a single signature cooperatively produced by all signers. This is '''more compact''' and has '''lower verification cost''' than each signer providing an individual public key and signature, as would be required by an ''n-of-n'' policy implemented using <code>OP_CHECKSIGADD</code> as introduced in ([https://github.com/bitcoin/bips/blob/master/bip-0342.mediawiki BIP342]).
+The on-chain footprint of a MuSig2 Taproot output is essentially a single BIP340 public key, and a transaction spending the output only requires a single signature cooperatively produced by all signers. This is '''more compact''' and has '''lower verification cost''' than each signer providing an individual public key and signature, as would be required by an ''n-of-n'' policy implemented using <code>OP_CHECKSIGADD</code> as introduced in ([https://github.com/bitcoin/bips/blob/master/bip-0342.mediawiki BIP342]).
 As a side effect, the number ''n'' of signers is not limited by any consensus rules when using MuSig2.
 
 Moreover, MuSig2 offers a '''higher level of privacy''' than <code>OP_CHECKSIGADD</code>: MuSig2 Taproot outputs are indistinguishable for a blockchain observer from regular, single-signer Taproot outputs even though they are actually controlled by multiple signers. By tweaking an aggregate key, the shared Taproot output can have script spending paths that are hidden unless used.
@@ -614,4 +615,4 @@ The <code>PATCH</code> version is incremented for other changes that are notewor
 
 == Acknowledgements ==
 
-We thank Brandon Black, Riccardo Casatta, Russell O'Connor, and Pieter Wuille for their contributions to this document.
+We thank Brandon Black, Riccardo Casatta, Lloyd Fournier, Russell O'Connor, and Pieter Wuille for their contributions to this document.
