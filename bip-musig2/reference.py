@@ -1,5 +1,4 @@
-from collections import namedtuple
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, NewType, NamedTuple
 import hashlib
 import secrets
 import time
@@ -102,6 +101,9 @@ def schnorr_verify(msg: bytes, pubkey: bytes, sig: bytes) -> bool:
 # End of helper functions copied from BIP-340 reference implementation.
 #
 
+PlainPk = NewType('PlainPk', bytes)
+XonlyPk = NewType('XonlyPk', bytes)
+
 # There are two types of exceptions that can be raised by this implementation:
 #   - ValueError for indicating that an input doesn't conform to some function
 #     precondition (e.g. an input array is the wrong length, a serialized
@@ -161,19 +163,21 @@ def cpoint_extended(x: bytes) -> Optional[Point]:
     else:
         return cpoint(x)
 
-# Return the public key corresponding to a given secret key
-def keygen(sk: bytes) -> bytes:
+# Return the plain public key corresponding to a given secret key
+def keygen(sk: bytes) -> PlainPk:
     P = point_mul(G, int_from_bytes(sk))
     assert P is not None
-    return cbytes(P)
+    return PlainPk(cbytes(P))
 
-KeyGenContext = namedtuple('KeyGenContext', ['Q', 'gacc', 'tacc'])
+KeyGenContext = NamedTuple('KeyGenContext', [('Q', Point),
+                                             ('gacc', int),
+                                             ('tacc', int)])
 
-def get_pk(keygen_ctx: KeyGenContext) -> bytes:
+def get_xonly_pk(keygen_ctx: KeyGenContext) -> XonlyPk:
     Q, _, _ = keygen_ctx
-    return bytes_from_point(Q)
+    return XonlyPk(bytes_from_point(Q))
 
-def key_agg(pubkeys: List[bytes]) -> KeyGenContext:
+def key_agg(pubkeys: List[PlainPk]) -> KeyGenContext:
     pk2 = get_second_key(pubkeys)
     u = len(pubkeys)
     Q = infinity
@@ -190,21 +194,21 @@ def key_agg(pubkeys: List[bytes]) -> KeyGenContext:
     tacc = 0
     return KeyGenContext(Q, gacc, tacc)
 
-def hash_keys(pubkeys: List[bytes]) -> bytes:
+def hash_keys(pubkeys: List[PlainPk]) -> bytes:
     return tagged_hash('KeyAgg list', b''.join(pubkeys))
 
-def get_second_key(pubkeys: List[bytes]) -> bytes:
+def get_second_key(pubkeys: List[PlainPk]) -> PlainPk:
     u = len(pubkeys)
     for j in range(1, u):
         if pubkeys[j] != pubkeys[0]:
             return pubkeys[j]
-    return b'\x00'*33
+    return PlainPk(b'\x00'*33)
 
-def key_agg_coeff(pubkeys: List[bytes], pk_: bytes) -> int:
+def key_agg_coeff(pubkeys: List[PlainPk], pk_: PlainPk) -> int:
     pk2 = get_second_key(pubkeys)
     return key_agg_coeff_internal(pubkeys, pk_, pk2)
 
-def key_agg_coeff_internal(pubkeys: List[bytes], pk_: bytes, pk2: bytes) -> int:
+def key_agg_coeff_internal(pubkeys: List[PlainPk], pk_: PlainPk, pk2: PlainPk) -> int:
     L = hash_keys(pubkeys)
     if pk_ == pk2:
         return 1
@@ -231,7 +235,7 @@ def apply_tweak(keygen_ctx: KeyGenContext, tweak: bytes, is_xonly: bool) -> KeyG
 def bytes_xor(a: bytes, b: bytes) -> bytes:
     return bytes(x ^ y for x, y in zip(a, b))
 
-def nonce_hash(rand: bytes, aggpk: bytes, i: int, msg_prefixed: bytes, extra_in: bytes) -> int:
+def nonce_hash(rand: bytes, aggpk: XonlyPk, i: int, msg_prefixed: bytes, extra_in: bytes) -> int:
     buf = b''
     buf += rand
     buf += len(aggpk).to_bytes(1, 'big')
@@ -242,13 +246,13 @@ def nonce_hash(rand: bytes, aggpk: bytes, i: int, msg_prefixed: bytes, extra_in:
     buf += i.to_bytes(1, 'big')
     return int_from_bytes(tagged_hash('MuSig/nonce', buf))
 
-def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[bytes], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytes, bytes]:
+def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytes, bytes]:
     if sk is not None:
         rand = bytes_xor(sk, tagged_hash('MuSig/aux', rand_))
     else:
         rand = rand_
     if aggpk is None:
-        aggpk = b''
+        aggpk = XonlyPk(b'')
     if msg is None:
         msg_prefixed = b'\x00'
     else:
@@ -270,7 +274,7 @@ def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[bytes]
     secnonce = bytes_from_int(k_1) + bytes_from_int(k_2)
     return secnonce, pubnonce
 
-def nonce_gen(sk: Optional[bytes], aggpk: Optional[bytes], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytes, bytes]:
+def nonce_gen(sk: Optional[bytes], aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytes, bytes]:
     if sk is not None and len(sk) != 32:
         raise ValueError('The optional byte array sk must have length 32.')
     if aggpk is not None and len(aggpk) != 32:
@@ -292,9 +296,13 @@ def nonce_agg(pubnonces: List[bytes]) -> bytes:
         aggnonce += cbytes_extended(R_i)
     return aggnonce
 
-SessionContext = namedtuple('SessionContext', ['aggnonce', 'pubkeys', 'tweaks', 'is_xonly', 'msg'])
+SessionContext = NamedTuple('SessionContext', [('aggnonce', bytes),
+                                               ('pubkeys', List[PlainPk]),
+                                               ('tweaks', List[bytes]),
+                                               ('is_xonly', List[bool]),
+                                               ('msg', bytes)])
 
-def key_agg_and_tweak(pubkeys: List[bytes], tweaks: List[bytes], is_xonly: List[bool]):
+def key_agg_and_tweak(pubkeys: List[PlainPk], tweaks: List[bytes], is_xonly: List[bool]):
     if len(tweaks) != len(is_xonly):
         raise ValueError('The `tweaks` and `is_xonly` arrays must have the same length.')
     keygen_ctx = key_agg(pubkeys)
@@ -321,7 +329,7 @@ def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, in
 
 def get_session_key_agg_coeff(session_ctx: SessionContext, P: Point) -> int:
     (_, pubkeys, _, _, _) = session_ctx
-    return key_agg_coeff(pubkeys, cbytes(P))
+    return key_agg_coeff(pubkeys, PlainPk(cbytes(P)))
 
 # Callers should overwrite secnonce with zeros after calling sign.
 def sign(secnonce: bytes, sk: bytes, session_ctx: SessionContext) -> bytes:
@@ -353,7 +361,7 @@ def sign(secnonce: bytes, sk: bytes, session_ctx: SessionContext) -> bytes:
     assert partial_sig_verify_internal(psig, pubnonce, cbytes(P), session_ctx)
     return psig
 
-def partial_sig_verify(psig: bytes, pubnonces: List[bytes], pubkeys: List[bytes], tweaks: List[bytes], is_xonly: List[bool], msg: bytes, i: int) -> bool:
+def partial_sig_verify(psig: bytes, pubnonces: List[bytes], pubkeys: List[PlainPk], tweaks: List[bytes], is_xonly: List[bool], msg: bytes, i: int) -> bool:
     if len(pubnonces) != len(pubkeys):
         raise ValueError('The `pubnonces` and `pubkeys` arrays must have the same length.')
     if len(tweaks) != len(is_xonly):
@@ -444,7 +452,7 @@ def test_key_agg_vectors() -> None:
         pubkeys = [X[i] for i in test_case["key_indices"]]
         expected = bytes.fromhex(test_case["expected"])
 
-        assert get_pk(key_agg(pubkeys)) == expected
+        assert get_xonly_pk(key_agg(pubkeys)) == expected
 
     for i, test_case in enumerate(error_test_cases):
         exception, except_fn = get_error_details(test_case)
@@ -661,7 +669,7 @@ def test_sig_agg_vectors() -> None:
         session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
         sig = partial_sig_agg(psigs, session_ctx)
         assert sig == expected
-        aggpk = get_pk(key_agg_and_tweak(pubkeys, tweaks, is_xonly))
+        aggpk = get_xonly_pk(key_agg_and_tweak(pubkeys, tweaks, is_xonly))
         assert schnorr_verify(msg, aggpk, sig)
 
     for i, test_case in enumerate(error_test_cases):
@@ -698,7 +706,7 @@ def test_sign_and_verify_random(iters: int) -> None:
         v = secrets.randbelow(4)
         tweaks = [secrets.token_bytes(32) for _ in range(v)]
         is_xonly = [secrets.choice([False, True]) for _ in range(v)]
-        aggpk = get_pk(key_agg_and_tweak(pubkeys, tweaks, is_xonly))
+        aggpk = get_xonly_pk(key_agg_and_tweak(pubkeys, tweaks, is_xonly))
 
         # Use a non-repeating counter for extra_in
         secnonce_1, pubnonce_1 = nonce_gen(sk_1, aggpk, msg, i.to_bytes(4, 'big'))
