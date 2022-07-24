@@ -161,6 +161,12 @@ def cpoint_extended(x: bytes) -> Optional[Point]:
     else:
         return cpoint(x)
 
+# Return the public key corresponding to a given secret key
+def keygen(sk: bytes) -> bytes:
+    P = point_mul(G, int_from_bytes(sk))
+    assert P is not None
+    return bytes_from_point(P)
+
 KeyGenContext = namedtuple('KeyGenContext', ['Q', 'gacc', 'tacc'])
 
 def get_pk(keygen_ctx: KeyGenContext) -> bytes:
@@ -670,8 +676,8 @@ def test_sign_and_verify_random(iters):
     for i in range(iters):
         sk_1 = secrets.token_bytes(32)
         sk_2 = secrets.token_bytes(32)
-        pk_1 = bytes_from_point(point_mul(G, int_from_bytes(sk_1)))
-        pk_2 = bytes_from_point(point_mul(G, int_from_bytes(sk_2)))
+        pk_1 = keygen(sk_1)
+        pk_2 = keygen(sk_2)
         pubkeys = [pk_1, pk_2]
 
         # In this example, the message and aggregate pubkey are known
