@@ -431,7 +431,7 @@ def get_error_details(test_case):
         raise RuntimeError(f"Invalid error type: {error['type']}")
     return exception, except_fn
 
-def test_key_agg_vectors():
+def test_key_agg_vectors() -> None:
     with open(os.path.join(sys.path[0], 'key_agg_vectors.json')) as f:
         test_data = json.load(f)
 
@@ -455,7 +455,7 @@ def test_key_agg_vectors():
 
         assertRaises(exception, lambda: key_agg_and_tweak(pubkeys, tweaks, is_xonly), except_fn)
 
-def test_nonce_gen_vectors():
+def test_nonce_gen_vectors() -> None:
     with open(os.path.join(sys.path[0], 'nonce_gen_vectors.json')) as f:
         test_data = json.load(f)
 
@@ -475,7 +475,7 @@ def test_nonce_gen_vectors():
 
         assert nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)[0] == expected
 
-def test_nonce_agg_vectors():
+def test_nonce_agg_vectors() -> None:
     with open(os.path.join(sys.path[0], 'nonce_agg_vectors.json')) as f:
         test_data = json.load(f)
 
@@ -493,21 +493,24 @@ def test_nonce_agg_vectors():
         pubnonces = [pnonce[i] for i in test_case["pnonce_indices"]]
         assertRaises(exception, lambda: nonce_agg(pubnonces), except_fn)
 
-def test_sign_verify_vectors():
+def test_sign_verify_vectors() -> None:
     with open(os.path.join(sys.path[0], 'sign_verify_vectors.json')) as f:
         test_data = json.load(f)
 
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == bytes_from_point(point_mul(G, int_from_bytes(sk)))
+    assert X[0] == keygen(sk)
 
     secnonce = bytes.fromhex(test_data["secnonce"])
     pnonce = fromhex_all(test_data["pnonces"])
     # The public nonce corresponding to secnonce is at index 0
     k1 = int_from_bytes(secnonce[0:32])
     k2 = int_from_bytes(secnonce[32:64])
-    assert pnonce[0] == cbytes(point_mul(G, k1)) + cbytes(point_mul(G, k2))
+    R1 = point_mul(G, k1)
+    R2 = point_mul(G, k2)
+    assert R1 is not None and R2 is not None
+    assert pnonce[0] == cbytes(R1) + cbytes(R2)
 
     aggnonces = fromhex_all(test_data["aggnonces"])
     # The aggregate of the first three elements of pnonce is at index 0
@@ -568,21 +571,24 @@ def test_sign_verify_vectors():
 
         assertRaises(exception, lambda: partial_sig_verify(sig, pubnonces, pubkeys, [], [], msg, signer_index), except_fn)
 
-def test_tweak_vectors():
+def test_tweak_vectors() -> None:
     with open(os.path.join(sys.path[0], 'tweak_vectors.json')) as f:
         test_data = json.load(f)
 
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == bytes_from_point(point_mul(G, int_from_bytes(sk)))
+    assert X[0] == keygen(sk)
 
     secnonce = bytes.fromhex(test_data["secnonce"])
     pnonce = fromhex_all(test_data["pnonces"])
     # The public nonce corresponding to secnonce is at index 0
     k1 = int_from_bytes(secnonce[0:32])
     k2 = int_from_bytes(secnonce[32:64])
-    assert pnonce[0] == cbytes(point_mul(G, k1)) + cbytes(point_mul(G, k2))
+    R1 = point_mul(G, k1)
+    R2 = point_mul(G, k2)
+    assert R1 is not None and R2 is not None
+    assert pnonce[0] == cbytes(R1) + cbytes(R2)
 
     aggnonce = bytes.fromhex(test_data["aggnonce"])
     # The aggnonce is the aggregate of the first three elements of pnonce
@@ -623,7 +629,7 @@ def test_tweak_vectors():
         session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
         assertRaises(exception, lambda: sign(secnonce, sk, session_ctx), except_fn)
 
-def test_sig_agg_vectors():
+def test_sig_agg_vectors() -> None:
     with open(os.path.join(sys.path[0], 'sig_agg_vectors.json')) as f:
         test_data = json.load(f)
 
@@ -672,7 +678,7 @@ def test_sig_agg_vectors():
         session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
         assertRaises(exception, lambda: partial_sig_agg(psigs, session_ctx), except_fn)
 
-def test_sign_and_verify_random(iters):
+def test_sign_and_verify_random(iters: int) -> None:
     for i in range(iters):
         sk_1 = secrets.token_bytes(32)
         sk_2 = secrets.token_bytes(32)
