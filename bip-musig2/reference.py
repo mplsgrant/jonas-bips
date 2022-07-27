@@ -612,12 +612,13 @@ def test_sign_verify_vectors():
 
     # Vector 13: Wrong signature (which is equal to the negation of valid signature expected[0])
     wrong_sig = bytes.fromhex('97AC833ADCB1AFA42EBF9E0725616F3C9A0D5B614F6FE283CEAAA37A8FFAF406')
-    assert not partial_sig_verify(wrong_sig, pnonce, [pk, X[0], X[1]], [], [], msg, 0)
+    assert not partial_sig_verify(wrong_sig, [pnonce[0], pnonce[1], pnonce[2]], [pk, X[0], X[1]], [], [], msg, 0)
     # Vector 14: Wrong signer
-    assert not partial_sig_verify(expected[0], pnonce, [pk, X[0], X[1]], [], [], msg, 1)
+    assert not partial_sig_verify(expected[0], [pnonce[0], pnonce[1], pnonce[2]], [pk, X[0], X[1]], [], [], msg, 1)
+    assert partial_sig_verify(expected[0], [pnonce[0], pnonce[1], pnonce[2]], [pk, X[0], X[1]], [], [], msg, 0)
     # Vector 15: Signature exceeds group size
     wrong_sig = bytes.fromhex('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141')
-    assert not partial_sig_verify(wrong_sig, pnonce, [pk, X[0], X[1]], [], [], msg, 0)
+    assert not partial_sig_verify(wrong_sig, [pnonce[0], pnonce[1], pnonce[2]], [pk, X[0], X[1]], [], [], msg, 0)
     # Vector 16: Invalid pubnonce
     invalid_pubnonce = bytes.fromhex('020000000000000000000000000000000000000000000000000000000000000009')
     assertRaises(InvalidContributionError,
@@ -625,7 +626,7 @@ def test_sign_verify_vectors():
                  lambda e: e.signer == 0 and e.contrib == "pubnonce")
     # Vector 17: Invalid public key
     assertRaises(InvalidContributionError,
-                 lambda: partial_sig_verify(expected[0], pnonce, [invalid_pk, X[0], X[1]], [], [], msg, 0),
+                 lambda: partial_sig_verify(expected[0], [pnonce[0], pnonce[1], pnonce[2]], [invalid_pk, X[0], X[1]], [], [], msg, 0),
                  lambda e: e.signer == 0 and e.contrib == "pubkey")
 
 def test_tweak_vectors():
