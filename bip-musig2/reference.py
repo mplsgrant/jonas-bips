@@ -222,13 +222,12 @@ def apply_tweak(keygen_ctx: KeyGenContext, tweak: bytes, is_xonly: bool) -> KeyG
 def bytes_xor(a: bytes, b: bytes) -> bytes:
     return bytes(x ^ y for x, y in zip(a, b))
 
-def nonce_hash(rand: bytes, aggpk: bytes, i: int, msg: bytes, extra_in: bytes) -> int:
+def nonce_hash(rand: bytes, aggpk: bytes, i: int, msg_prefixed: bytes, extra_in: bytes) -> int:
     buf = b''
     buf += rand
     buf += len(aggpk).to_bytes(1, 'big')
     buf += aggpk
-    buf += len(msg).to_bytes(8, 'big')
-    buf += msg
+    buf += msg_prefixed
     buf += len(extra_in).to_bytes(4, 'big')
     buf += extra_in
     buf += i.to_bytes(1, 'big')
@@ -242,11 +241,15 @@ def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[bytes]
     if aggpk is None:
         aggpk = b''
     if msg is None:
-        msg = b''
+        msg_prefixed = b'\x00'
+    else:
+        msg_prefixed = b'\x01'
+        msg_prefixed += len(msg).to_bytes(8, 'big')
+        msg_prefixed += msg
     if extra_in is None:
         extra_in = b''
-    k_1 = nonce_hash(rand, aggpk, 0, msg, extra_in)
-    k_2 = nonce_hash(rand, aggpk, 1, msg, extra_in)
+    k_1 = nonce_hash(rand, aggpk, 0, msg_prefixed, extra_in)
+    k_2 = nonce_hash(rand, aggpk, 1, msg_prefixed, extra_in)
     # k_1 == 0 or k_2 == 0 cannot occur except with negligible probability.
     assert k_1 != 0
     assert k_2 != 0
@@ -449,12 +452,12 @@ def test_nonce_gen_vectors():
     extra_in = fill(8)
 
     expected = fromhex_all([
-        'FDC302CBD26318FF85DE9BB499BCFEB5C54B681A5A2BF1660A3D50A6A97BBCF8' +
-        '040577B50C260D6722894B3B6848B68CC74591D7F3BB2F646F69E2609C494DE6',
-        'CE2AA822EBBC200ED36829E0DBF5C08CC955DEE9C3CF651DA6D37648A6C5417D' +
-        '822BA95D66B455D697BDE2996E4229340A3E60E654E7205994AD4482E3769810',
-        '1E5F9CC2BA2716FFD10E72B21043C5C454A7AE956BFB062C8401158DD3F74059' +
-        '1AC30C8C020B4BAB07768FAE5FF8EEE20C28EC098B790CD367E8C149BF295860'
+        'BC6C683EBBCC39DCB3C29B3D010D2AAA7C86CFB562FC41ED9A460EE061013E75' +
+        'FB4AD2F0B816713269800D018803906D5481E00A940EAB4F4AC49B4A372EB0F4',
+        'AAC4BFD707F4953B4063851D7E4AAD5C59D5D0BFB0E71012788A85698B5ACF8F' +
+        '11834D5051928424BA501C8CD064F3F942F8D4A07D8A2ED79F153E4ABD9EBBE9',
+        '7B3B5A002356471AF0E961DE2549C121BD0D48ABCEEDC6E034BDDF86AD3E0A18' +
+        '7ECEE674CEF7364B0BC4BEEFB8B66CAD89F98DE2F8C5A5EAD5D1D1E4BD7D04CD'
     ])
 
     # Vector 1
