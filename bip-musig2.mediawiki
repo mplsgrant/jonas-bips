@@ -202,6 +202,7 @@ The following conventions are used, with constants as defined for [https://www.s
 ** ''||'' refers to byte array concatenation.
 ** The function ''x[i:j]'', where ''x'' is a byte array and ''i, j &ge; 0'', returns a ''(j - i)''-byte array with a copy of the ''i''-th byte (inclusive) to the ''j''-th byte (exclusive) of ''x''.
 ** The function ''bytes(n, x)'', where ''x'' is an integer, returns the n-byte encoding of ''x'', most significant byte first.
+** The constant ''empty_bytestring'' refers to the empty byte array. It holds that ''len(empty_bytestring) = 0''.
 ** The function ''bytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''bytes(32, x(P))''.
 ** The function ''len(x)'' where ''x'' is a byte array returns the length of the array.
 ** The function ''has_even_y(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''y(P) mod 2 == 0''.
@@ -313,16 +314,22 @@ Input:
 ==== Nonce Generation ====
 
 Input:
-* The secret signing key ''sk'': a 32-byte array or 0-byte array (optional argument)
-* The aggregate public key ''aggpk'': a 32-byte array or 0-byte array (optional argument)
+* The secret signing key ''sk'': a 32-byte array (optional argument)
+* The aggregate public key ''aggpk'': a 32-byte array (optional argument)
 * The message ''m'': a byte array (optional argument)<ref name="mlen">In theory, the allowed message size is restricted because SHA256 accepts byte strings only up to size of 2^61-1 bytes (and because of the 8-byte length encoding).</ref>
 * The auxiliary input ''extra_in'': a byte array with ''0 &le; len(extra_in) &le; 2<sup>32</sup>-1'' (optional argument)
 
 '''''NonceGen(sk, aggpk, m, extra_in)''''':
 * Let ''rand' '' be a 32-byte array freshly drawn uniformly at random
-* If ''len(sk) > 0'':
+* If the optional argument ''sk'' is present:
 ** Let ''rand'' be the byte-wise xor of ''sk'' and ''hash<sub>MuSig/aux</sub>(rand')''<ref>The random data is hashed (with a unique tag) as a precaution against situations where the randomness may be correlated with the secret signing key itself. It is xored with the secret key (rather than combined with it in a hash) to reduce the number of operations exposed to the actual secret key.</ref>.
 * Else: let ''rand = rand' ''
+* If the optional argument ''aggpk'' is not present:
+** Let ''aggpk = empty_bytestring''
+* If the optional argument ''m'' is not present:
+** Let ''m = empty_bytestring''
+* If the optional argument ''extra_in'' is not present:
+** Let ''extra_in = empty_bytestring''
 * Let ''k<sub>i</sub> = int(hash<sub>MuSig/nonce</sub>(rand || bytes(1, len(aggpk)) || aggpk || bytes(8, len(m)) || m || bytes(4, len(extra_in)) || extra_in || bytes(1, i - 1))) mod n'' for ''i = 1,2''
 * Fail if ''k<sub>1</sub> = 0'' or ''k<sub>2</sub> = 0''
 * Let ''R<sup>*</sup><sub>1</sub> = k<sub>1</sub>⋅G, R<sup>*</sup><sub>2</sub> = k<sub>2</sub>⋅G''

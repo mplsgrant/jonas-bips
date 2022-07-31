@@ -234,11 +234,17 @@ def nonce_hash(rand: bytes, aggpk: bytes, i: int, msg: bytes, extra_in: bytes) -
     buf += i.to_bytes(1, 'big')
     return int_from_bytes(tagged_hash('MuSig/nonce', buf))
 
-def nonce_gen_internal(rand_: bytes, sk: bytes, aggpk: bytes, msg: bytes, extra_in: bytes) -> Tuple[bytes, bytes]:
-    if len(sk) > 0:
+def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[bytes], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytes, bytes]:
+    if sk is not None:
         rand = bytes_xor(sk, tagged_hash('MuSig/aux', rand_))
     else:
         rand = rand_
+    if aggpk is None:
+        aggpk = b''
+    if msg is None:
+        msg = b''
+    if extra_in is None:
+        extra_in = b''
     k_1 = nonce_hash(rand, aggpk, 0, msg, extra_in)
     k_2 = nonce_hash(rand, aggpk, 1, msg, extra_in)
     # k_1 == 0 or k_2 == 0 cannot occur except with negligible probability.
@@ -252,11 +258,11 @@ def nonce_gen_internal(rand_: bytes, sk: bytes, aggpk: bytes, msg: bytes, extra_
     secnonce = bytes_from_int(k_1) + bytes_from_int(k_2)
     return secnonce, pubnonce
 
-def nonce_gen(sk: bytes, aggpk: bytes, msg: bytes, extra_in: bytes) -> Tuple[bytes, bytes]:
-    if len(sk) not in (0, 32):
-        raise ValueError('The optional byte array sk must have length 0 or 32.')
-    if len(aggpk) not in (0, 32):
-        raise ValueError('The optional byte array aggpk must have length 0 or 32.')
+def nonce_gen(sk: Optional[bytes], aggpk: Optional[bytes], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytes, bytes]:
+    if sk is not None and len(sk) != 32:
+        raise ValueError('The optional byte array sk must have length 32.')
+    if aggpk is not None and len(aggpk) != 32:
+        raise ValueError('The optional byte array aggpk must have length 32.')
     rand_ = secrets.token_bytes(32)
     return nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)
 
@@ -456,7 +462,7 @@ def test_nonce_gen_vectors():
     # Vector 2
     assert nonce_gen_internal(rand_, sk, aggpk, b'', extra_in)[0] == expected[1]
     # Vector 3
-    assert nonce_gen_internal(rand_, b'', b'', b'', b'')[0] == expected[2]
+    assert nonce_gen_internal(rand_, None, None, None, None)[0] == expected[2]
 
 def test_nonce_agg_vectors():
     pnonce = fromhex_all([
