@@ -1,7 +1,6 @@
 from collections import namedtuple
 from typing import Any, List, Optional, Tuple
 import hashlib
-import json
 import secrets
 import time
 
@@ -384,6 +383,11 @@ def partial_sig_agg(psigs: List[bytes], session_ctx: SessionContext) -> bytes:
 # See `musig_test_vectors_keyagg` and `musig_test_vectors_sign` in
 # https://github.com/ElementsProject/secp256k1-zkp/blob/master/src/modules/musig/tests_impl.h
 #
+
+import json
+import os
+import sys
+
 def fromhex_all(l):
     return [bytes.fromhex(l_i) for l_i in l]
 
@@ -417,7 +421,7 @@ def get_error_details(test_case):
     return exception, except_fn
 
 def test_key_agg_vectors():
-    with open('key_agg_vectors.json') as f:
+    with open(os.path.join(sys.path[0], 'key_agg_vectors.json')) as f:
         test_data = json.load(f)
 
     X = fromhex_all(test_data["pubkeys"])
@@ -441,7 +445,7 @@ def test_key_agg_vectors():
         assertRaises(exception, lambda: key_agg_and_tweak(pubkeys, tweaks, is_xonly), except_fn)
 
 def test_nonce_gen_vectors():
-    with open('nonce_gen_vectors.json') as f:
+    with open(os.path.join(sys.path[0], 'nonce_gen_vectors.json')) as f:
         test_data = json.load(f)
 
     for test_case in test_data["test_cases"]:
@@ -461,7 +465,7 @@ def test_nonce_gen_vectors():
         assert nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)[0] == expected
 
 def test_nonce_agg_vectors():
-    with open('nonce_agg_vectors.json') as f:
+    with open(os.path.join(sys.path[0], 'nonce_agg_vectors.json')) as f:
         test_data = json.load(f)
 
     pnonce = fromhex_all(test_data["pnonces"])
@@ -479,7 +483,7 @@ def test_nonce_agg_vectors():
         assertRaises(exception, lambda: nonce_agg(pubnonces), except_fn)
 
 def test_sign_verify_vectors():
-    with open('sign_verify_vectors.json') as f:
+    with open(os.path.join(sys.path[0], 'sign_verify_vectors.json')) as f:
         test_data = json.load(f)
 
     sk = bytes.fromhex(test_data["sk"])
@@ -554,7 +558,7 @@ def test_sign_verify_vectors():
         assertRaises(exception, lambda: partial_sig_verify(sig, pubnonces, pubkeys, [], [], msg, signer_index), except_fn)
 
 def test_tweak_vectors():
-    with open('tweak_vectors.json') as f:
+    with open(os.path.join(sys.path[0], 'tweak_vectors.json')) as f:
         test_data = json.load(f)
 
     sk = bytes.fromhex(test_data["sk"])
@@ -609,7 +613,7 @@ def test_tweak_vectors():
         assertRaises(exception, lambda: sign(secnonce, sk, session_ctx), except_fn)
 
 def test_sig_agg_vectors():
-    with open('sig_agg_vectors.json') as f:
+    with open(os.path.join(sys.path[0], 'sig_agg_vectors.json')) as f:
         test_data = json.load(f)
 
     X = fromhex_all(test_data["pubkeys"])
