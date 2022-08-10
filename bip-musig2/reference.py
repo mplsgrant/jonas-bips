@@ -222,25 +222,34 @@ def apply_tweak(keygen_ctx: KeyGenContext, tweak: bytes, is_xonly: bool) -> KeyG
 def bytes_xor(a: bytes, b: bytes) -> bytes:
     return bytes(x ^ y for x, y in zip(a, b))
 
-def nonce_hash(rand: bytes, aggpk: bytes, i: int, msg: bytes, extra_in: bytes) -> int:
+def nonce_hash(rand: bytes, aggpk: bytes, i: int, msg_prefixed: bytes, extra_in: bytes) -> int:
     buf = b''
     buf += rand
     buf += len(aggpk).to_bytes(1, 'big')
     buf += aggpk
-    buf += len(msg).to_bytes(1, 'big')
-    buf += msg
+    buf += msg_prefixed
     buf += len(extra_in).to_bytes(4, 'big')
     buf += extra_in
     buf += i.to_bytes(1, 'big')
     return int_from_bytes(tagged_hash('MuSig/nonce', buf))
 
-def nonce_gen_internal(rand_: bytes, sk: bytes, aggpk: bytes, msg: bytes, extra_in: bytes) -> Tuple[bytes, bytes]:
-    if len(sk) > 0:
+def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[bytes], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytes, bytes]:
+    if sk is not None:
         rand = bytes_xor(sk, tagged_hash('MuSig/aux', rand_))
     else:
         rand = rand_
-    k_1 = nonce_hash(rand, aggpk, 0, msg, extra_in)
-    k_2 = nonce_hash(rand, aggpk, 1, msg, extra_in)
+    if aggpk is None:
+        aggpk = b''
+    if msg is None:
+        msg_prefixed = b'\x00'
+    else:
+        msg_prefixed = b'\x01'
+        msg_prefixed += len(msg).to_bytes(8, 'big')
+        msg_prefixed += msg
+    if extra_in is None:
+        extra_in = b''
+    k_1 = nonce_hash(rand, aggpk, 0, msg_prefixed, extra_in)
+    k_2 = nonce_hash(rand, aggpk, 1, msg_prefixed, extra_in)
     # k_1 == 0 or k_2 == 0 cannot occur except with negligible probability.
     assert k_1 != 0
     assert k_2 != 0
@@ -252,13 +261,11 @@ def nonce_gen_internal(rand_: bytes, sk: bytes, aggpk: bytes, msg: bytes, extra_
     secnonce = bytes_from_int(k_1) + bytes_from_int(k_2)
     return secnonce, pubnonce
 
-def nonce_gen(sk: bytes, aggpk: bytes, msg: bytes, extra_in: bytes) -> Tuple[bytes, bytes]:
-    if len(sk) not in (0, 32):
-        raise ValueError('The optional byte array sk must have length 0 or 32.')
-    if len(aggpk) not in (0, 32):
-        raise ValueError('The optional byte array aggpk must have length 0 or 32.')
-    if len(msg) not in (0, 32):
-        raise ValueError('The optional byte array msg must have length 0 or 32.')
+def nonce_gen(sk: Optional[bytes], aggpk: Optional[bytes], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytes, bytes]:
+    if sk is not None and len(sk) != 32:
+        raise ValueError('The optional byte array sk must have length 32.')
+    if aggpk is not None and len(aggpk) != 32:
+        raise ValueError('The optional byte array aggpk must have length 32.')
     rand_ = secrets.token_bytes(32)
     return nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)
 
@@ -445,10 +452,10 @@ def test_nonce_gen_vectors():
     extra_in = fill(8)
 
     expected = fromhex_all([
-        'E8F2E103D86800F19A4E97338D371CB885DB2F19D08C0BD205BBA9B906C971D0' +
-        'D786A17718AAFAD6DE025DDDD99DC823E2DFC1AE1DDFE920888AD53FFF423FC4',
-        '8A633F5EECBDB690A6BE4921426F41BE78D509DC1CE894C1215844C0E4C6DE7A' +
-        'BC9A5BE0A3BF3FE312CCB7E4817D2CB17A7CEA8382B73A99A583E323387B3C32',
+        'BC6C683EBBCC39DCB3C29B3D010D2AAA7C86CFB562FC41ED9A460EE061013E75' +
+        'FB4AD2F0B816713269800D018803906D5481E00A940EAB4F4AC49B4A372EB0F4',
+        'AAC4BFD707F4953B4063851D7E4AAD5C59D5D0BFB0E71012788A85698B5ACF8F' +
+        '11834D5051928424BA501C8CD064F3F942F8D4A07D8A2ED79F153E4ABD9EBBE9',
         '7B3B5A002356471AF0E961DE2549C121BD0D48ABCEEDC6E034BDDF86AD3E0A18' +
         '7ECEE674CEF7364B0BC4BEEFB8B66CAD89F98DE2F8C5A5EAD5D1D1E4BD7D04CD'
     ])
@@ -458,7 +465,7 @@ def test_nonce_gen_vectors():
     # Vector 2
     assert nonce_gen_internal(rand_, sk, aggpk, b'', extra_in)[0] == expected[1]
     # Vector 3
-    assert nonce_gen_internal(rand_, b'', b'', b'', b'')[0] == expected[2]
+    assert nonce_gen_internal(rand_, None, None, None, None)[0] == expected[2]
 
 def test_nonce_agg_vectors():
     pnonce = fromhex_all([
@@ -538,6 +545,7 @@ def test_sign_verify_vectors():
         '2DF67BFFF18E3DE797E13C6475C963048138DAEC5CB20A357CECA7C8424295EA',
         '0D5B651E6DE34A29A12DE7A8B4183B4AE6A7F7FBE15CDCAFA4A3D1BCAABC7517',
         '8D5E0407FB4756EEBCD86264C32D792EE36EEB69E952BBB30B8E41BEBC4D22FA',
+        '0167931A502D28A128DDAC1DC2A53296F00DA663CCDDC9673D79020091A3A58A',
     ])
 
     pk = bytes_from_point(point_mul(G, int_from_bytes(sk)))
@@ -563,14 +571,19 @@ def test_sign_verify_vectors():
     session_ctx = SessionContext(inf_aggnonce, [pk, X[0]], [], [], msg)
     assert sign(secnonce, sk, session_ctx) == expected[3]
 
-    # Vector 5: Signer 2 provided an invalid public key
+    # Vector 5: Empty message
+    empty_msg = b''
+    session_ctx = SessionContext(aggnonce, [pk, X[0], X[1]], [], [], empty_msg)
+    assert sign(secnonce, sk, session_ctx) == expected[4]
+
+    # Vector 6: Signer 2 provided an invalid public key
     invalid_pk = bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000007')
     session_ctx = SessionContext(aggnonce, [X[0], pk, invalid_pk], [], [], msg)
     assertRaises(InvalidContributionError,
                  lambda: sign(secnonce, sk, session_ctx),
                  lambda e: e.signer == 2 and e.contrib == "pubkey")
 
-    # Vector 6: Aggregate nonce is invalid due wrong tag, 0x04, in the first
+    # Vector 7: Aggregate nonce is invalid due wrong tag, 0x04, in the first
     # half
     invalid_aggnonce = bytes.fromhex(
         '048465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61' +
@@ -579,7 +592,7 @@ def test_sign_verify_vectors():
     assertRaises(InvalidContributionError,
                  lambda: sign(secnonce, sk, session_ctx),
                  lambda e: e.signer == None and e.contrib == "aggnonce")
-    # Vector 7: Aggregate nonce is invalid because the second half does not
+    # Vector 8: Aggregate nonce is invalid because the second half does not
     # correspond to an X coordinate
     invalid_aggnonce = bytes.fromhex(
         '028465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61' +
@@ -588,7 +601,7 @@ def test_sign_verify_vectors():
     assertRaises(InvalidContributionError,
                  lambda: sign(secnonce, sk, session_ctx),
                  lambda e: e.signer == None and e.contrib == "aggnonce")
-    # Vector 8: Aggregate nonce is invalid because second half exceeds field
+    # Vector 9: Aggregate nonce is invalid because second half exceeds field
     # size
     invalid_aggnonce = bytes.fromhex(
         '028465FCF0BBDBCF443AABCCE533D42B4B5A10966AC09A49655E8C42DAAB8FCD61' +
@@ -599,31 +612,34 @@ def test_sign_verify_vectors():
                  lambda e: e.signer == None and e.contrib == "aggnonce")
 
     # Verification test vectors
-    # Vector 9
-    assert partial_sig_verify(expected[0], [pnonce[0], pnonce[1], pnonce[2]], [pk, X[0], X[1]], [], [], msg, 0)
     # Vector 10
-    assert partial_sig_verify(expected[1], [pnonce[1], pnonce[0], pnonce[2]], [X[0], pk, X[1]], [], [], msg, 1)
+    assert partial_sig_verify(expected[0], [pnonce[0], pnonce[1], pnonce[2]], [pk, X[0], X[1]], [], [], msg, 0)
     # Vector 11
+    assert partial_sig_verify(expected[1], [pnonce[1], pnonce[0], pnonce[2]], [X[0], pk, X[1]], [], [], msg, 1)
+    # Vector 12
     assert partial_sig_verify(expected[2], [pnonce[1], pnonce[2], pnonce[0]], [X[0], X[1], pk], [], [], msg, 2)
 
-    # Vector 12: Both halves of aggregate nonce correspond to point at infinity
+    # Vector 13: Both halves of aggregate nonce correspond to point at infinity
     assert(inf_aggnonce == nonce_agg([pnonce[0], pnonce[3]]))
     assert partial_sig_verify(expected[3], [pnonce[0], pnonce[3]], [pk, X[0]], [], [], msg, 0)
 
-    # Vector 13: Wrong signature (which is equal to the negation of valid signature expected[0])
+    # Vector 14: Empty message
+    assert partial_sig_verify(expected[4], [pnonce[0], pnonce[1], pnonce[2]], [pk, X[0], X[1]], [], [], empty_msg, 0)
+
+    # Vector 15: Wrong signature (which is equal to the negation of valid signature expected[0])
     wrong_sig = bytes.fromhex('97AC833ADCB1AFA42EBF9E0725616F3C9A0D5B614F6FE283CEAAA37A8FFAF406')
     assert not partial_sig_verify(wrong_sig, pnonce, [pk, X[0], X[1]], [], [], msg, 0)
-    # Vector 14: Wrong signer
+    # Vector 16: Wrong signer
     assert not partial_sig_verify(expected[0], pnonce, [pk, X[0], X[1]], [], [], msg, 1)
-    # Vector 15: Signature exceeds group size
+    # Vector 17: Signature exceeds group size
     wrong_sig = bytes.fromhex('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141')
     assert not partial_sig_verify(wrong_sig, pnonce, [pk, X[0], X[1]], [], [], msg, 0)
-    # Vector 16: Invalid pubnonce
+    # Vector 18: Invalid pubnonce
     invalid_pubnonce = bytes.fromhex('020000000000000000000000000000000000000000000000000000000000000009')
     assertRaises(InvalidContributionError,
                  lambda: partial_sig_verify(expected[0], [invalid_pubnonce, pnonce[1], pnonce[2]], [pk, X[0], X[1]], [], [], msg, 0),
                  lambda e: e.signer == 0 and e.contrib == "pubnonce")
-    # Vector 17: Invalid public key
+    # Vector 19: Invalid public key
     assertRaises(InvalidContributionError,
                  lambda: partial_sig_verify(expected[0], pnonce, [invalid_pk, X[0], X[1]], [], [], msg, 0),
                  lambda e: e.signer == 0 and e.contrib == "pubkey")
