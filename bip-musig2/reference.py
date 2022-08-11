@@ -380,9 +380,6 @@ def partial_sig_agg(psigs: List[bytes], session_ctx: SessionContext) -> bytes:
     return bytes_from_point(R) + bytes_from_int(s)
 #
 # The following code is only used for testing.
-# Test vectors were copied from libsecp256k1-zkp's MuSig test file.
-# See `musig_test_vectors_keyagg` and `musig_test_vectors_sign` in
-# https://github.com/ElementsProject/secp256k1-zkp/blob/master/src/modules/musig/tests_impl.h
 #
 def fromhex_all(l):
     return [bytes.fromhex(l_i) for l_i in l]
