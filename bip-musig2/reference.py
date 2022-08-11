@@ -287,6 +287,8 @@ def nonce_agg(pubnonces: List[bytes]) -> bytes:
 SessionContext = namedtuple('SessionContext', ['aggnonce', 'pubkeys', 'tweaks', 'is_xonly', 'msg'])
 
 def key_agg_and_tweak(pubkeys: List[bytes], tweaks: List[bytes], is_xonly: List[bool]):
+    if len(tweaks) != len(is_xonly):
+        raise ValueError('The `tweaks` and `is_xonly` arrays must have the same length.')
     keygen_ctx = key_agg(pubkeys)
     v = len(tweaks)
     for i in range(v):
@@ -345,6 +347,10 @@ def sign(secnonce: bytes, sk: bytes, session_ctx: SessionContext) -> bytes:
     return psig
 
 def partial_sig_verify(psig: bytes, pubnonces: List[bytes], pubkeys: List[bytes], tweaks: List[bytes], is_xonly: List[bool], msg: bytes, i: int) -> bool:
+    if len(pubnonces) != len(pubkeys):
+        raise ValueError('The `pubnonces` and `pubkeys` arrays must have the same length.')
+    if len(tweaks) != len(is_xonly):
+        raise ValueError('The `tweaks` and `is_xonly` arrays must have the same length.')
     aggnonce = nonce_agg(pubnonces)
     session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
     return partial_sig_verify_internal(psig, pubnonces[i], pubkeys[i], session_ctx)
