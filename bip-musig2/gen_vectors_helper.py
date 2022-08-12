@@ -15,6 +15,34 @@ def gen_key_agg_vectors():
     print("  pubkey:", pk.hex().upper())
     print("  tweak: ", tweak.hex().upper())
 
+def check_sign_verify_vectors():
+    with open(os.path.join(sys.path[0], 'sign_verify_vectors.json')) as f:
+        test_data = json.load(f)
+    X = fromhex_all(test_data["pubkeys"])
+    pnonce = fromhex_all(test_data["pnonces"])
+    aggnonces = fromhex_all(test_data["aggnonces"])
+    msgs = fromhex_all(test_data["msgs"])
+
+    valid_test_cases = test_data["valid_test_cases"]
+    for (i, test_case) in enumerate(valid_test_cases):
+        pubkeys = [X[i] for i in test_case["key_indices"]]
+        pubnonces = [pnonce[i] for i in test_case["nonce_indices"]]
+        aggnonce = aggnonces[test_case["aggnonce_index"]]
+        assert nonce_agg(pubnonces) == aggnonce
+        msg = msgs[test_case["msg_index"]]
+        signer_index = test_case["signer_index"]
+        expected = bytes.fromhex(test_case["expected"])
+
+        session_ctx = SessionContext(aggnonce, pubkeys, [], [], msg)
+        (Q, _, _, _, R, _) = get_session_values(session_ctx)
+        # Make sure the vectors include tests for both variants of Q and R
+        if i == 0:
+           assert has_even_y(Q) and not has_even_y(R)
+        if i == 1:
+           assert not has_even_y(Q) and has_even_y(R)
+        if i == 2:
+           assert has_even_y(Q) and has_even_y(R)
+
 def sig_agg_vectors():
     print("sig_agg_vectors.json:")
     sk = fromhex_all([
@@ -125,5 +153,6 @@ def sig_agg_vectors():
     }, indent=4))
 
 gen_key_agg_vectors()
+check_sign_verify_vectors()
 print()
 sig_agg_vectors()
