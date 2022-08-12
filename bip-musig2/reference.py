@@ -276,11 +276,11 @@ def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[XonlyP
     # k_1 == 0 or k_2 == 0 cannot occur except with negligible probability.
     assert k_1 != 0
     assert k_2 != 0
-    R_1_ = point_mul(G, k_1)
-    R_2_ = point_mul(G, k_2)
-    assert R_1_ is not None
-    assert R_2_ is not None
-    pubnonce = cbytes(R_1_) + cbytes(R_2_)
+    R_s1 = point_mul(G, k_1)
+    R_s2 = point_mul(G, k_2)
+    assert R_s1 is not None
+    assert R_s2 is not None
+    pubnonce = cbytes(R_s1) + cbytes(R_s2)
     secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2))
     return secnonce, pubnonce
 
@@ -295,15 +295,15 @@ def nonce_gen(sk: Optional[bytes], aggpk: Optional[XonlyPk], msg: Optional[bytes
 def nonce_agg(pubnonces: List[bytes]) -> bytes:
     u = len(pubnonces)
     aggnonce = b''
-    for i in (1, 2):
-        R_i = infinity
-        for j in range(u):
+    for j in (1, 2):
+        R_j = infinity
+        for i in range(u):
             try:
-                R_ij = cpoint(pubnonces[j][(i-1)*33:i*33])
+                R_ij = cpoint(pubnonces[i][(j-1)*33:j*33])
             except ValueError:
-                raise InvalidContributionError(j, "pubnonce")
-            R_i = point_add(R_i, R_ij)
-        aggnonce += cbytes_extended(R_i)
+                raise InvalidContributionError(i, "pubnonce")
+            R_j = point_add(R_j, R_ij)
+        aggnonce += cbytes_extended(R_j)
     return aggnonce
 
 SessionContext = NamedTuple('SessionContext', [('aggnonce', bytes),
@@ -364,11 +364,11 @@ def sign(secnonce: bytearray, sk: bytes, session_ctx: SessionContext) -> bytes:
     d = g * gacc * d_ % n
     s = (k_1 + b * k_2 + e * a * d) % n
     psig = bytes_from_int(s)
-    R_1_ = point_mul(G, k_1_)
-    R_2_ = point_mul(G, k_2_)
-    assert R_1_ is not None
-    assert R_2_ is not None
-    pubnonce = cbytes(R_1_) + cbytes(R_2_)
+    R_s1 = point_mul(G, k_1_)
+    R_s2 = point_mul(G, k_2_)
+    assert R_s1 is not None
+    assert R_s2 is not None
+    pubnonce = cbytes(R_s1) + cbytes(R_s2)
     # Optional correctness check. The result of signing should pass signature verification.
     assert partial_sig_verify_internal(psig, pubnonce, cbytes(P), session_ctx)
     return psig
@@ -396,11 +396,11 @@ def deterministic_sign(sk: bytes, aggothernonce: bytes, pubkeys: List[PlainPk], 
     assert k_1 != 0
     assert k_2 != 0
 
-    R_1_ = point_mul(G, k_1)
-    R_2_ = point_mul(G, k_2)
-    assert R_1_ is not None
-    assert R_2_ is not None
-    pubnonce = cbytes(R_1_) + cbytes(R_2_)
+    R_s1 = point_mul(G, k_1)
+    R_s2 = point_mul(G, k_2)
+    assert R_s1 is not None
+    assert R_s2 is not None
+    pubnonce = cbytes(R_s1) + cbytes(R_s2)
     secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2))
     try:
         aggnonce = nonce_agg([pubnonce, aggothernonce])
@@ -419,22 +419,22 @@ def partial_sig_verify(psig: bytes, pubnonces: List[bytes], pubkeys: List[PlainP
     session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
     return partial_sig_verify_internal(psig, pubnonces[i], pubkeys[i], session_ctx)
 
-def partial_sig_verify_internal(psig: bytes, pubnonce: bytes, pk_: bytes, session_ctx: SessionContext) -> bool:
+def partial_sig_verify_internal(psig: bytes, pubnonce: bytes, pk: bytes, session_ctx: SessionContext) -> bool:
     (Q, gacc, _, b, R, e) = get_session_values(session_ctx)
     s = int_from_bytes(psig)
     if s >= n:
         return False
-    R_1_ = cpoint(pubnonce[0:33])
-    R_2_ = cpoint(pubnonce[33:66])
-    R__ = point_add(R_1_, point_mul(R_2_, b))
-    R_ = R__ if has_even_y(R) else point_negate(R__)
-    P = cpoint(pk_)
+    R_s1 = cpoint(pubnonce[0:33])
+    R_s2 = cpoint(pubnonce[33:66])
+    Re_s_ = point_add(R_s1, point_mul(R_s2, b))
+    Re_s = Re_s_ if has_even_y(R) else point_negate(Re_s_)
+    P = cpoint(pk)
     if P is None:
         return False
     a = get_session_key_agg_coeff(session_ctx, P)
     g = 1 if has_even_y(Q) else n - 1
     g_ = g * gacc % n
-    return point_mul(G, s) == point_add(R_, point_mul(P, e * a * g_ % n))
+    return point_mul(G, s) == point_add(Re_s, point_mul(P, e * a * g_ % n))
 
 def partial_sig_agg(psigs: List[bytes], session_ctx: SessionContext) -> bytes:
     (Q, _, tacc, _, R, e) = get_session_values(session_ctx)
@@ -571,12 +571,12 @@ def test_sign_verify_vectors() -> None:
     secnonces = fromhex_all(test_data["secnonces"])
     pnonce = fromhex_all(test_data["pnonces"])
     # The public nonce corresponding to secnonces[0] is at index 0
-    k1 = int_from_bytes(secnonces[0][0:32])
-    k2 = int_from_bytes(secnonces[0][32:64])
-    R1 = point_mul(G, k1)
-    R2 = point_mul(G, k2)
-    assert R1 is not None and R2 is not None
-    assert pnonce[0] == cbytes(R1) + cbytes(R2)
+    k_1 = int_from_bytes(secnonces[0][0:32])
+    k_2 = int_from_bytes(secnonces[0][32:64])
+    R_s1 = point_mul(G, k_1)
+    R_s2 = point_mul(G, k_2)
+    assert R_s1 is not None and R_s2 is not None
+    assert pnonce[0] == cbytes(R_s1) + cbytes(R_s2)
 
     aggnonces = fromhex_all(test_data["aggnonces"])
     # The aggregate of the first three elements of pnonce is at index 0
@@ -649,12 +649,12 @@ def test_tweak_vectors() -> None:
     secnonce = bytearray(bytes.fromhex(test_data["secnonce"]))
     pnonce = fromhex_all(test_data["pnonces"])
     # The public nonce corresponding to secnonce is at index 0
-    k1 = int_from_bytes(secnonce[0:32])
-    k2 = int_from_bytes(secnonce[32:64])
-    R1 = point_mul(G, k1)
-    R2 = point_mul(G, k2)
-    assert R1 is not None and R2 is not None
-    assert pnonce[0] == cbytes(R1) + cbytes(R2)
+    k_1 = int_from_bytes(secnonce[0:32])
+    k_2 = int_from_bytes(secnonce[32:64])
+    R_s1 = point_mul(G, k_1)
+    R_s2 = point_mul(G, k_2)
+    assert R_s1 is not None and R_s2 is not None
+    assert pnonce[0] == cbytes(R_s1) + cbytes(R_s2)
 
     aggnonce = bytes.fromhex(test_data["aggnonce"])
     # The aggnonce is the aggregate of the first three elements of pnonce

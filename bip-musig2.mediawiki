@@ -335,8 +335,8 @@ Algorithm ''NonceGen(sk, aggpk, m, extra_in)'':
 ** Let ''extra_in = empty_bytestring''
 * Let ''k<sub>i</sub> = int(hash<sub>MuSig/nonce</sub>(rand || bytes(1, len(aggpk)) || aggpk || m_prefixed || bytes(4, len(extra_in)) || extra_in || bytes(1, i - 1))) mod n'' for ''i = 1,2''
 * Fail if ''k<sub>1</sub> = 0'' or ''k<sub>2</sub> = 0''
-* Let ''R<sup>*</sup><sub>1</sub> = k<sub>1</sub>⋅G, R<sup>*</sup><sub>2</sub> = k<sub>2</sub>⋅G''
-* Let ''pubnonce = cbytes(R<sup>*</sup><sub>1</sub>) || cbytes(R<sup>*</sup><sub>2</sub>)''
+* Let ''R<sub>⁎,1</sub> = k<sub>1</sub>⋅G, R<sub>⁎,2</sub> = k<sub>2</sub>⋅G''
+* Let ''pubnonce = cbytes(R<sub>⁎,1</sub>) || cbytes(R<sub>⁎,2</sub>)''
 * Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>)''
 * Return ''(secnonce, pubnonce)''
 </div>
@@ -348,10 +348,10 @@ Algorithm ''NonceAgg(pubnonce<sub>1..u</sub>)'':
 * Inputs:
 ** The number ''u'' of ''pubnonces'' with ''0 < u < 2^32''
 ** The public nonces ''pubnonce<sub>1..u</sub>'': ''u'' 66-byte arrays
-* For ''i = 1 .. 2'':
-** For ''j = 1 .. u'':
-*** Let ''R<sub>i,j</sub> = cpoint(pubnonce<sub>j</sub>[(i-1)*33:i*33])''; fail if that fails
-** Let ''R<sub>i</sub> = R<sub>i,1</sub> + R<sub>i,2</sub> + ... + R<sub>i,u</sub>''
+* For ''j = 1 .. 2'':
+** For ''i = 1 .. u'':
+*** Let ''R<sub>i,j</sub> = cpoint(pubnonce<sub>i</sub>[(j-1)*33:j*33])''; fail if that fails
+** Let ''R<sub>j</sub> = R<sub>1,j</sub> + R<sub>2,j</sub> + ... + R<sub>u,j</sub>''
 * Return ''aggnonce = cbytes_extended(R<sub>1</sub>) || cbytes_extended(R<sub>2</sub>)''
 </div>
 
@@ -438,17 +438,17 @@ Algorithm ''PartialSigVerify(psig, pubnonce<sub>1..u</sub>, pk<sub>1..u</sub>, t
 </div>
 
 <div>
-Internal Algorithm ''PartialSigVerifyInternal(psig, pubnonce, pk<sup>*</sup>, session_ctx)'':
+Internal Algorithm ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'':
 * Let ''(Q, gacc, _, b, R, e) = GetSessionValues(session_ctx)''; fail if that fails
 * Let ''s = int(psig)''; fail if ''s &ge; n''
-* Let ''R<sup>*</sup><sub>1</sub> = cpoint(pubnonce[0:33]), R<sup>*</sup><sub>2</sub> = cpoint(pubnonce[33:66])''
-* Let ''R<sup>*</sup>' = R<sup>*</sup><sub>1</sub> + b⋅R<sup>*</sup><sub>2</sub>''
-* Let ''R<sup>*</sup> = R<sup>*</sup>' '' if ''has_even_y(R)'', otherwise let ''R<sup>*</sup> = -R<sup>*</sup>' ''
-* Let ''P = cpoint(pk<sup>*</sup>)''; fail if that fails
+* Let ''R<sub>⁎,1</sub> = cpoint(pubnonce[0:33]), R<sub>⁎,2</sub> = cpoint(pubnonce[33:66])''
+* Let ''Re<sub>⁎</sub>' = R<sub>⁎,1</sub> + b⋅R<sub>⁎,2</sub>''
+* Let ''Re<sub>⁎</sub> = Re<sub>⁎</sub>' '' if ''has_even_y(R)'', otherwise let ''Re<sub>⁎</sub> = -Re<sub>⁎</sub>' ''
+* Let ''P = cpoint(pk)''; fail if that fails
 * Let ''a = GetSessionKeyAggCoeff(session_ctx, P)''; fail if that fails
 * Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
 * <div id="SigVerify negation"></div>Let ''g' = g⋅gacc mod n'' (See [[#negation-of-the-public-key-when-partially-verifying|Negation Of The Public Key When Partially Verifying]])
-* Fail if ''s⋅G &ne; R<sup>*</sup> + e⋅a⋅g'⋅P''
+* Fail if ''s⋅G &ne; Re<sub>⁎</sub> + e⋅a⋅g'⋅P''
 * Return success iff no failure occurred before reaching this point.
 </div>
 
@@ -528,8 +528,8 @@ Algorithm ''DeterministicSign(sk, aggothernonce, pk<sub>1..u</sub>, tweak<sub>1.
 * Let ''aggpk = GetPubkey(keygen_ctx<sub>v</sub>)''
 * Let ''k<sub>i</sub> = int(hash<sub>MuSig/deterministic/nonce</sub>(sk' || aggothernonce || aggpk || bytes(8, len(m)) || m || bytes(1, i - 1))) mod n'' for ''i = 1,2''
 * Fail if ''k<sub>1</sub> = 0'' or ''k<sub>2</sub> = 0''
-* Let ''R<sup>*</sup><sub>1</sub> = k<sub>1</sub>⋅G, R<sup>*</sup><sub>2</sub> = k<sub>2</sub>⋅G''
-* Let ''pubnonce = cbytes(R<sup>*</sup><sub>1</sub>) || cbytes(R<sup>*</sup><sub>2</sub>)''
+* Let ''R<sub>⁎,1</sub> = k<sub>1</sub>⋅G, R<sub>⁎,2</sub> = k<sub>2</sub>⋅G''
+* Let ''pubnonce = cbytes(R<sub>⁎,2</sub>) || cbytes(R<sub>⁎,2</sub>)''
 * Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>)''
 * Let ''aggnonce = NonceAgg((pubnonce, aggothernonce)); fail if that fails''
 * Let ''session_ctx = (aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m)''
@@ -625,14 +625,14 @@ when producing a partial signature to ensure that the aggregate signature will c
 
 <poem>
 The ''[[#SigVerify negation|PartialSigVerifyInternal]]'' algorithm is supposed to check
-  ''s⋅G = R<sup>*</sup> + e⋅a⋅d⋅G''.
+  ''s⋅G = Re<sub>⁎</sub> + e⋅a⋅d⋅G''.
 </poem>
 
 <poem>
-The verifier doesn't have access to ''d⋅G'', but can construct it using the plain public key ''pk<sup>*</sup>'' as follows:
+The verifier doesn't have access to ''d⋅G'', but can construct it using the plain public key ''pk'' as follows:
 ''d⋅G
     = g<sub>v</sub>⋅gacc<sub>v</sub>⋅d'⋅G
-    = g<sub>v</sub>⋅gacc<sub>v</sub>⋅cpoint(pk<sup>*</sup>)''
+    = g<sub>v</sub>⋅gacc<sub>v</sub>⋅cpoint(pk)''
 Note that the aggregate public key and list of tweaks are inputs to partial signature verification, so the verifier can also construct ''g<sub>v</sub>'' and ''gacc<sub>v</sub>''.
 </poem>
 
@@ -679,6 +679,7 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
+* '''0.8.4''' (2022-09-02): Make naming of nonce variants ''R'' in specification and reference code easier to read and more consistent.
 * '''0.8.3''' (2022-09-01): Overwrite ''secnonce'' in ''sign'' reference implementation to help prevent accidental reuse and add test vector for invalid ''secnonce''.
 * '''0.8.2''' (2022-08-30): Fix ''KeySort'' input length and add test vectors
 * '''0.8.1''' (2022-08-26): Add ''DeterministicSign'' algorithm
