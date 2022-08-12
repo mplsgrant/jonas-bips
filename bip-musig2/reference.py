@@ -739,11 +739,10 @@ def test_sign_and_verify_random(iters: int) -> None:
         assert schnorr_verify(msg, aggpk, sig)
 
 if __name__ == '__main__':
-    # TODO
     test_key_agg_vectors()
     test_nonce_gen_vectors()
     test_nonce_agg_vectors()
     test_sign_verify_vectors()
     test_tweak_vectors()
-    # test_sig_agg_vectors()
+    test_sig_agg_vectors()
     test_sign_and_verify_random(4)
