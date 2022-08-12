@@ -223,11 +223,11 @@ The KeyGen Context is a data structure consisting of the following elements:
 
 We write "Let ''(Q, gacc, tacc) = keygen_ctx''" to assign names to the elements of a KeyGen Context.
 
-'''''GetXonlyPubkey(keygen_ctx)''''':
+Algorithm ''GetXonlyPubkey(keygen_ctx)'':
 * Let ''(Q, _, _) = keygen_ctx''
 * Return ''bytes(Q)''
 
-'''''GetPlainPubkey(keygen_ctx)''''':
+Algorithm ''GetPlainPubkey(keygen_ctx)'':
 * Let ''(Q, _, _) = keygen_ctx''
 * Return ''cbytes(Q)''
 
@@ -237,7 +237,7 @@ Input:
 * The number ''u'' of public keys with ''0 < u < 2^32''
 * The plain public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
 
-'''''KeySort(pk<sub>1..u</sub>)''''':
+Algorithm ''KeySort(pk<sub>1..u</sub>)'':
 * Return ''pk<sub>1..u</sub>'' sorted in lexicographical order.
 
 ==== Key Aggregation ====
@@ -246,7 +246,7 @@ Input:
 * The number ''u'' of public keys with ''0 < u < 2^32''
 * The plain public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
 
-'''''KeyAgg(pk<sub>1..u</sub>)''''':
+Algorithm ''KeyAgg(pk<sub>1..u</sub>)'':
 * Let ''pk2 = GetSecondKey(pk<sub>1..u</sub>)''
 * For ''i = 1 .. u'':
 ** Let ''P<sub>i</sub> = cpoint(pk<sub>i</sub>)''; fail if that fails.
@@ -257,20 +257,20 @@ Input:
 * Let ''tacc = 0''
 * Return ''keygen_ctx = (Q, gacc, tacc)''.
 
-internal '''''HashKeys(pk<sub>1..u</sub>)''''':
+Internal Algorithm ''HashKeys(pk<sub>1..u</sub>)'':
 * Return ''hash<sub>KeyAgg list</sub>(pk<sub>1</sub> || pk<sub>2</sub> || ... || pk<sub>u</sub>)''
 
-'''''GetSecondKey(pk<sub>1..u</sub>)''''':
+Internal Algorithm ''GetSecondKey(pk<sub>1..u</sub>)'':
 * For ''j = 1 .. u'':
 ** If ''pk<sub>j</sub> &ne; pk<sub>1</sub>'':
 *** Return ''pk<sub>j</sub>''
 * Return ''bytes(33, 0)''
 
-'''''KeyAggCoeff(pk<sub>1..u</sub>, pk')''''':
+Internal Algorithm ''KeyAggCoeff(pk<sub>1..u</sub>, pk')'':
 * Let ''pk2 = GetSecondKey(pk<sub>1..u</sub>)'':
 * Return ''KeyAggCoeffInternal(pk<sub>1..u</sub>, pk', pk2)''
 
-'''''KeyAggCoeffInternal(pk<sub>1..u</sub>, pk', pk2)''''':
+Internal Algorithm ''KeyAggCoeffInternal(pk<sub>1..u</sub>, pk', pk2)'':
 * Let ''L = HashKeys(pk<sub>1..u</sub>)''
 * If ''pk' = pk2'':
 ** Return 1
@@ -283,7 +283,7 @@ Input:
 * The ''tweak'': a 32-byte array
 * The tweak mode ''is_xonly_t'': a boolean
 
-'''''ApplyTweak(keygen_ctx, tweak, is_xonly_t)''''':
+Algorithm ''ApplyTweak(keygen_ctx, tweak, is_xonly_t)'':
 * Let ''(Q, gacc, tacc) = keygen_ctx''
 * If ''is_xonly_t'' and ''not has_even_y(Q)'':
 ** Let ''g = -1 mod n''
@@ -304,7 +304,7 @@ Input:
 * The message ''m'': a byte array (optional argument)<ref name="mlen">In theory, the allowed message size is restricted because SHA256 accepts byte strings only up to size of 2^61-1 bytes (and because of the 8-byte length encoding).</ref>
 * The auxiliary input ''extra_in'': a byte array with ''0 &le; len(extra_in) &le; 2<sup>32</sup>-1'' (optional argument)
 
-'''''NonceGen(sk, aggpk, m, extra_in)''''':
+Algorithm ''NonceGen(sk, aggpk, m, extra_in)'':
 * Let ''rand' '' be a 32-byte array freshly drawn uniformly at random
 * If the optional argument ''sk'' is present:
 ** Let ''rand'' be the byte-wise xor of ''sk'' and ''hash<sub>MuSig/aux</sub>(rand')''<ref>The random data is hashed (with a unique tag) as a precaution against situations where the randomness may be correlated with the secret signing key itself. It is xored with the secret key (rather than combined with it in a hash) to reduce the number of operations exposed to the actual secret key.</ref>.
@@ -331,7 +331,7 @@ Input:
 * The number ''u'' of ''pubnonces'' with ''0 < u < 2^32''
 * The public nonces ''pubnonce<sub>1..u</sub>'': ''u'' 66-byte arrays
 
-'''''NonceAgg(pubnonce<sub>1..u</sub>)''''':
+Algorithm ''NonceAgg(pubnonce<sub>1..u</sub>)'':
 * For ''i = 1 .. 2'':
 ** For ''j = 1 .. u'':
 *** Let ''R<sub>i,j</sub> = cpoint(pubnonce<sub>j</sub>[(i-1)*33:i*33])''; fail if that fails
@@ -351,7 +351,7 @@ The Session Context is a data structure consisting of the following elements:
 
 We write "Let ''(aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m) = session_ctx''" to assign names to the elements of a Session Context.
 
-'''''GetSessionValues(session_ctx)''''':
+Algorithm ''GetSessionValues(session_ctx)'':
 * Let ''(aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m) = session_ctx''
 * Let ''keygen_ctx<sub>0</sub> = KeyAgg(pk<sub>1..u</sub>)''; fail if that fails
 * For ''i = 1 .. v'':
@@ -367,7 +367,7 @@ We write "Let ''(aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xon
 * Let ''e = int(hash<sub>BIP0340/challenge</sub>(bytes(R) || bytes(Q) || m)) mod n''
 * Return ''(Q, gacc, tacc, b, R, e)''
 
-'''''GetSessionKeyAggCoeff(session_ctx, P)''''':
+Algorithm ''GetSessionKeyAggCoeff(session_ctx, P)'':
 * Let ''(_, u, pk<sub>1..u</sub>, _, _, _, _) = session_ctx''
 * Return ''KeyAggCoeff(pk<sub>1..u</sub>, cbytes(P))''
 
@@ -378,7 +378,7 @@ Input:
 * The secret key ''sk'': a 32-byte array
 * The ''session_ctx'': a [[#session-context|Session Context]] data structure
 
-'''''Sign(secnonce, sk, session_ctx)''''':
+Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * Let ''(Q, gacc, _, b, R, e) = GetSessionValues(session_ctx)''; fail if that fails
 * Let ''k'<sub>1</sub> = int(secnonce[0:32]), k'<sub>2</sub> = int(secnonce[32:64])''
 * Fail if ''k'<sub>i</sub> = 0'' or ''k'<sub>i</sub> &ge; n'' for ''i = 1..2''
@@ -408,13 +408,13 @@ Input:
 * The message ''m'': a byte array<ref name="mlen" />
 * The index of the signer ''i'' in the public nonces and public keys with ''0 < i &le; u''
 
-'''''PartialSigVerify(psig, pubnonce<sub>1..u</sub>, pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m, i)''''':
+Algorithm ''PartialSigVerify(psig, pubnonce<sub>1..u</sub>, pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m, i)'':
 * Let ''aggnonce = NonceAgg(pubnonce<sub>1..u</sub>)''; fail if that fails
 * Let ''session_ctx = (aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m)''
 * Run ''PartialSigVerifyInternal(psig, pubnonce<sub>i</sub>, pk<sub>i</sub>, session_ctx)''
 * Return success iff no failure occurred before reaching this point.
 
-'''''PartialSigVerifyInternal(psig, pubnonce, pk<sup>*</sup>, session_ctx)''''':
+Internal Algorithm ''PartialSigVerifyInternal(psig, pubnonce, pk<sup>*</sup>, session_ctx)'':
 * Let ''(Q, gacc, _, b, R, e) = GetSessionValues(session_ctx)''; fail if that fails
 * Let ''s = int(psig)''; fail if ''s &ge; n''
 * Let ''R<sup>*</sup><sub>1</sub> = cpoint(pubnonce[0:33]), R<sup>*</sup><sub>2</sub> = cpoint(pubnonce[33:66])''
@@ -434,7 +434,7 @@ Input:
 * The partial signatures ''psig<sub>1..u</sub>'': ''u'' 32-byte arrays
 * The ''session_ctx'': a [[#session-context|Session Context]] data structure
 
-'''''PartialSigAgg(psig<sub>1..u</sub>, session_ctx)''''':
+Algorithm ''PartialSigAgg(psig<sub>1..u</sub>, session_ctx)'':
 * Let ''(Q, _, tacc, _, _, R, e) = GetSessionValues(session_ctx)''; fail if that fails
 * For ''i = 1 .. u'':
 ** Let ''s<sub>i</sub> = int(psig<sub>i</sub>)''; fail if ''s<sub>i</sub> &ge; n''.
@@ -491,7 +491,7 @@ Input:
 * The message ''m'': a byte array<ref name="mlen" />
 * The auxiliary randomness ''rand'': a 32-byte array (optional argument)
 
-'''''DeterministicSign(sk, aggothernonce, pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m, rand)''''':
+Algorithm ''DeterministicSign(sk, aggothernonce, pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m, rand)'':
 * If the optional argument ''rand'' is present:
 ** Let ''sk' '' be the byte-wise xor of ''sk'' and ''hash<sub>MuSig/aux</sub>(rand)''
 * Else:
@@ -517,10 +517,10 @@ Input:
 * ''P'': a point
 * The tweak ''t'': an integer with ''0 &le; t < n ''
 
-'''''ApplyPlainTweak(P, t)''''':
+Algorithm ''ApplyPlainTweak(P, t)'':
 * Return ''P + t⋅G''
 
-'''''ApplyXonlyTweak(P, t)''''':
+Algorithm ''ApplyXonlyTweak(P, t)'':
 * Return ''with_even_y(P) + t⋅G''
 
 === Negation Of The Secret Key When Signing ===
