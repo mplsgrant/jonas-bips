@@ -404,7 +404,7 @@ def fromhex_all(l):
 
 # Check that calling `try_fn` raises a `exception`. If `exception` is raised,
 # examine it with `except_fn`.
-def assertRaises(exception, try_fn, except_fn):
+def assert_raises(exception, try_fn, except_fn):
     raised = False
     try:
         try_fn()
@@ -453,7 +453,7 @@ def test_key_agg_vectors() -> None:
         tweaks = [T[i] for i in test_case["tweak_indices"]]
         is_xonly = test_case["is_xonly"]
 
-        assertRaises(exception, lambda: key_agg_and_tweak(pubkeys, tweaks, is_xonly), except_fn)
+        assert_raises(exception, lambda: key_agg_and_tweak(pubkeys, tweaks, is_xonly), except_fn)
 
 def test_nonce_gen_vectors() -> None:
     with open(os.path.join(sys.path[0], 'nonce_gen_vectors.json')) as f:
@@ -491,7 +491,7 @@ def test_nonce_agg_vectors() -> None:
     for i, test_case in enumerate(error_test_cases):
         exception, except_fn = get_error_details(test_case)
         pubnonces = [pnonce[i] for i in test_case["pnonce_indices"]]
-        assertRaises(exception, lambda: nonce_agg(pubnonces), except_fn)
+        assert_raises(exception, lambda: nonce_agg(pubnonces), except_fn)
 
 def test_sign_verify_vectors() -> None:
     with open(os.path.join(sys.path[0], 'sign_verify_vectors.json')) as f:
@@ -549,7 +549,7 @@ def test_sign_verify_vectors() -> None:
         msg = msgs[test_case["msg_index"]]
 
         session_ctx = SessionContext(aggnonce, pubkeys, [], [], msg)
-        assertRaises(exception, lambda: sign(secnonce, sk, session_ctx), except_fn)
+        assert_raises(exception, lambda: sign(secnonce, sk, session_ctx), except_fn)
 
     for test_case in verify_fail_test_cases:
         sig = bytes.fromhex(test_case["sig"])
@@ -569,7 +569,7 @@ def test_sign_verify_vectors() -> None:
         msg = msgs[test_case["msg_index"]]
         signer_index = test_case["signer_index"]
 
-        assertRaises(exception, lambda: partial_sig_verify(sig, pubnonces, pubkeys, [], [], msg, signer_index), except_fn)
+        assert_raises(exception, lambda: partial_sig_verify(sig, pubnonces, pubkeys, [], [], msg, signer_index), except_fn)
 
 def test_tweak_vectors() -> None:
     with open(os.path.join(sys.path[0], 'tweak_vectors.json')) as f:
@@ -627,7 +627,7 @@ def test_tweak_vectors() -> None:
         signer_index = test_case["signer_index"]
 
         session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
-        assertRaises(exception, lambda: sign(secnonce, sk, session_ctx), except_fn)
+        assert_raises(exception, lambda: sign(secnonce, sk, session_ctx), except_fn)
 
 def test_sig_agg_vectors() -> None:
     with open(os.path.join(sys.path[0], 'sig_agg_vectors.json')) as f:
@@ -676,7 +676,7 @@ def test_sig_agg_vectors() -> None:
         psigs = [psig[i] for i in test_case["psig_indices"]]
 
         session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
-        assertRaises(exception, lambda: partial_sig_agg(psigs, session_ctx), except_fn)
+        assert_raises(exception, lambda: partial_sig_agg(psigs, session_ctx), except_fn)
 
 def test_sign_and_verify_random(iters: int) -> None:
     for i in range(iters):
