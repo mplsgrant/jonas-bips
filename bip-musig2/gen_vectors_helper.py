@@ -43,6 +43,27 @@ def check_sign_verify_vectors():
         if i == 2:
            assert has_even_y(Q) and has_even_y(R)
 
+def check_tweak_vectors():
+    with open(os.path.join(sys.path[0], 'tweak_vectors.json')) as f:
+        test_data = json.load(f)
+
+    X = fromhex_all(test_data["pubkeys"])
+    pnonce = fromhex_all(test_data["pnonces"])
+    tweak = fromhex_all(test_data["tweaks"])
+    valid_test_cases = test_data["valid_test_cases"]
+
+    for (i, test_case) in enumerate(valid_test_cases):
+        pubkeys = [X[i] for i in test_case["key_indices"]]
+        tweaks = [tweak[i] for i in test_case["tweak_indices"]]
+        is_xonly = test_case["is_xonly"]
+
+        _, gacc, _ = key_agg_and_tweak(pubkeys, tweaks, is_xonly)
+        # Make sure the vectors include tests for gacc = 1 and -1
+        if i == 0:
+           assert gacc == n - 1
+        if i == 1:
+           assert gacc == 1
+
 def sig_agg_vectors():
     print("sig_agg_vectors.json:")
     sk = fromhex_all([
@@ -154,5 +175,6 @@ def sig_agg_vectors():
 
 gen_key_agg_vectors()
 check_sign_verify_vectors()
+check_tweak_vectors()
 print()
 sig_agg_vectors()
