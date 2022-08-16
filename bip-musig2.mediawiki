@@ -225,7 +225,6 @@ The following conventions are used, with constants as defined for [https://www.s
 *** Fail if ''c &ne; y'<sup>2</sup> mod p''.
 *** Let ''y = y' '' if ''y' mod 2 = 0'', otherwise let ''y = p - y' ''.
 *** Return the unique point ''P'' such that ''x(P) = x'' and ''y(P) = y''.
-** The function ''point(x)'', where ''x'' is a 32-byte array ("X-only" serialization), returns ''lift_x(int(x))''. Fail if ''lift_x'' fails.
 ** The function ''cpoint(x)'', where ''x'' is a 33-byte array (compressed serialization), sets ''P = lift_x(int(x[1:33]))'' and fails if that fails. If ''x[0] = 2'' it returns ''P'' and if ''x[0] = 3'' it returns ''-P''. Otherwise, it fails.
 ** The function ''cpoint_extended(x)'', where ''x'' is a 33-byte array (compressed serialization), returns the point at infinity if ''x = bytes(33, 0)''. Otherwise, it returns ''cpoint(x)'' and fails if that fails.
 ** The function ''hash<sub>tag</sub>(x)'' where ''tag'' is a UTF-8 encoded tag name and ''x'' is a byte array returns the 32-byte hash ''SHA256(SHA256(tag) || SHA256(tag) || x)''.
