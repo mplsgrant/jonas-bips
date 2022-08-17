@@ -23,7 +23,8 @@
     ],
     "msgs": [
         "F95466D086770E689964664219266FE5ED215C92AE20BAB5C9D79ADDDDF3C0CF",
-        ""
+        "",
+        "2626262626262626262626262626262626262626262626262626262626262626262626262626"
     ],
     "valid_test_cases": [
         {
@@ -67,6 +68,15 @@
             "signer_index": 0,
             "expected": "0167931A502D28A128DDAC1DC2A53296F00DA663CCDDC9673D79020091A3A58A",
             "comment": "Empty message"
+        },
+        {
+            "key_indices": [0, 1, 2],
+            "nonce_indices": [0, 1, 2],
+            "aggnonce_index": 0,
+            "msg_index": 2,
+            "signer_index": 0,
+            "expected": "0203172BB999C6FD7EFA3A1021CA2B2C92AC74C64002748D4CFB0EB7D4BF020D",
+            "comment": "38-byte message"
         }
     ],
     "sign_error_test_cases": [
