@@ -141,6 +141,8 @@ def point_negate(P: Optional[Point]) -> Optional[Point]:
     return (x(P), p - y(P))
 
 def cpoint(x: bytes) -> Point:
+    if len(x) != 33:
+        raise ValueError('x is not a valid compressed point.')
     P = lift_x(x[1:33])
     if P is None:
         raise ValueError('x is not a valid compressed point.')
