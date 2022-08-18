@@ -338,7 +338,7 @@ Input:
 * Let ''R<sup>*</sup><sub>1</sub> = k<sub>1</sub>⋅G, R<sup>*</sup><sub>2</sub> = k<sub>2</sub>⋅G''
 * Let ''pubnonce = cbytes(R<sup>*</sup><sub>1</sub>) || cbytes(R<sup>*</sup><sub>2</sub>)''
 * Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>)''
-* Return ''secnonce'' and ''pubnonce''
+* Return ''(secnonce, pubnonce)''
 
 ==== Nonce Aggregation ====
 
