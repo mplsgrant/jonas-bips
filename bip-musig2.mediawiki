@@ -58,7 +58,6 @@ The MuSig2 variant in this specification stands out by combining all of the foll
 This specification is written with a focus on clarity.
 As a result, the specified algorithms are not always optimal in terms of computation and space.
 In particular, some values are recomputed but can be cached in actual implementations (see [[#signing-flow|Signing Flow]]).
-Also, the signers' public nonces are serialized in compressed format (33 bytes) instead of the smaller (32 bytes) but more complicated X-only serialization.
 
 == Description ==
 
