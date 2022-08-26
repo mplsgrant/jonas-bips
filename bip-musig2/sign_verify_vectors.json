@@ -75,7 +75,7 @@
             "aggnonce_index": 0,
             "msg_index": 2,
             "signer_index": 0,
-            "expected": "0203172BB999C6FD7EFA3A1021CA2B2C92AC74C64002748D4CFB0EB7D4BF020D",
+            "expected": "E184351828DA5094A97C79CABDAAA0BFB87608C32E8829A4DF5340A6F243B78C",
             "comment": "38-byte message"
         }
     ],
