@@ -139,6 +139,7 @@ In general, MuSig2 signers are stateful in the sense that they first generate ''
 However, it is possible for one of the signers to be stateless.
 This signer waits until it receives the ''pubnonce'' of all the other signers and until session parameters such as a message to sign, public keys, and tweaks are determined.
 Then, the signer can run ''NonceGen'', ''NonceAgg'' and ''Sign'' in sequence and send out its ''pubnonce'' along with its partial signature.
+Stateless signers may want to consider signing deterministically (see [[#modifications-to-nonce-generation|Modifications to Nonce Generation]]) to remove the reliance on the random number generator in the ''NonceGen'' algorithm.
 
 ==== Identifying Disruptive Signers ====
 
@@ -172,25 +173,6 @@ The tweak mode provided to ''ApplyTweak'' depends on the application:
 Plain tweaking can be used to derive child public keys from an aggregate public key using [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32].
 On the other hand, X-only tweaking is required for Taproot tweaking per [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341].
 A Taproot-tweaked public key commits to a ''script path'', allowing users to create transaction outputs that are spendable either with a MuSig2 multi-signature or by providing inputs that satisfy the script path.
-
-==== Modifications to Nonce Generation ====
-
-Implementors must avoid modifying the ''NonceGen'' algorithm without being fully aware of the implications.
-The following two modifications are secure when applied correctly and may be useful in special circumstances, e.g., in very restricted environments where secure randomness is not available.
-
-First, on systems where obtaining uniformly random values is much harder than maintaining a global atomic counter, it can be beneficial to modify ''NonceGen''.
-Instead of drawing ''rand' '' uniformly at random, ''rand' '' can be the value of an atomic counter that is incremented whenever it is read.
-With this modification, the secret signing key ''sk'' of the signer generating the nonce is '''not''' an optional argument and must be provided to ''NonceGen''.
-The security of the resulting scheme is then depending on the requirement that the counter must never return the same output in two ''NonceGen'' invocations with the same ''sk''.
-
-Second, if there is a unique signer who is supposed to send the ''pubnonce'' last, it is possible to modify nonce generation for this single signer to not require high-quality randomness.
-If randomness is entirely unavailable, nonce generation for this signer can also be made deterministic.
-To obtain such a nonce generation algorithm ''NonceGen' '', the algorithm ''NonceGen'' should be modified as follows: The arguments ''sk'', ''aggpk'' and ''m'' are not optional and must be set precisely to the signer's secret key, the aggregate public key, and message of the session, respectively.
-In addition, ''NonceGen '' requires the ''pubnonce'' values of '''all''' other signers (concatenated in the order of signers), which can be provided via the ''extra_in'' argument.
-Hence, using ''NonceGen' '' is only possible for the last signer to generate a nonce and makes the signer stateless, similar to the stateless signer described in the [[#nonce-generation|Nonce Generation]] section.
-Further inputs can be added to ''extra_in'' as described in the [[#nonce-generation|Nonce Generation]] section.
-Lastly, if no randomness, not even low-quality randomness, is available, ''NonceGen' '' can be made deterministic by removing ''rand' '' and setting ''rand'' to ''sk''.
-Failure to provide the correct arguments to ''NonceGen' '' will allow attackers to extract secret keys.
 
 === Notation ===
 
@@ -328,7 +310,8 @@ Input:
 * Let ''rand' '' be a 32-byte array freshly drawn uniformly at random
 * If the optional argument ''sk'' is present:
 ** Let ''rand'' be the byte-wise xor of ''sk'' and ''hash<sub>MuSig/aux</sub>(rand')''<ref>The random data is hashed (with a unique tag) as a precaution against situations where the randomness may be correlated with the secret signing key itself. It is xored with the secret key (rather than combined with it in a hash) to reduce the number of operations exposed to the actual secret key.</ref>.
-* Else: let ''rand = rand' ''
+* Else:
+** let ''rand = rand' ''
 * If the optional argument ''aggpk'' is not present:
 ** Let ''aggpk = empty_bytestring''
 * If the optional argument ''m'' is not present:
@@ -471,6 +454,53 @@ The reference implementation is for demonstration purposes only and not to be us
 
 == Remarks on Security and Correctness ==
 
+=== Modifications to Nonce Generation ===
+
+Implementors must avoid modifying the ''NonceGen'' algorithm without being fully aware of the implications.
+The following two modifications are secure when applied correctly and may be useful in special circumstances, e.g., in very restricted environments where secure randomness is not available.
+
+First, on systems where obtaining uniformly random values is much harder than maintaining a global atomic counter, it can be beneficial to modify ''NonceGen''.
+Instead of drawing ''rand' '' uniformly at random, ''rand' '' can be the value of an atomic counter that is incremented whenever it is read.
+With this modification, the secret signing key ''sk'' of the signer generating the nonce is '''not''' an optional argument and must be provided to ''NonceGen''.
+The security of the resulting scheme is then depending on the requirement that reading the counter must never yield the same counter value in two ''NonceGen'' invocations with the same ''sk''.
+
+Second, if there is a unique signer who is supposed to send the ''pubnonce'' last, it is possible to modify nonce generation for this single signer to not require high-quality randomness.
+Such a nonce generation algorithm ''DeterministicSign'' is specified below.
+Note that the only optional argument is ''rand'', which can be omitted if randomness is entirely unavailable.
+''DeterministicSign'' requires the argument ''aggothernonce'' which should be set to the output of ''NonceAgg'' run on the ''pubnonce'' value of '''all''' other signers (but can be provided by an untrusted party).
+Hence, using ''DeterministicSign'' is only possible for the last signer to generate a nonce and makes the signer stateless, similar to the stateless signer described in the [[#nonce-generation|Nonce Generation]] section.
+
+==== Deterministic and Stateless Signing for a Single Signer ====
+
+Input:
+* The secret signing key ''sk'': a 32-byte array
+* The aggregate public nonce ''aggothernonce'' (see [[#modifications-to-nonce-generation|above]]): a 66-byte array
+* The number ''u'' of public keys with ''0 < u < 2^32''
+* The plain public keys ''pk<sub>1..u</sub>'': ''u'' 32-byte arrays
+* The number ''v'' of tweaks with ''0 &le; v < 2^32''
+* The tweaks ''tweak<sub>1..v</sub>'': ''v'' 32-byte arrays
+* The tweak methods ''is_xonly_t<sub>1..v</sub>'': ''v'' booleans
+* The message ''m'': a byte array<ref name="mlen" />
+* The auxiliary randomness ''rand'': a 32-byte array (optional argument)
+
+'''''DeterministicSign(sk, aggothernonce, pk<sub>1..u</sub>, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m, rand)''''':
+* If the optional argument ''rand'' is present:
+** Let ''sk' '' be the byte-wise xor of ''sk'' and ''hash<sub>MuSig/aux</sub>(rand)''
+* Else:
+** Let ''sk' = sk''
+* Let ''keygen_ctx<sub>0</sub> = KeyAgg(pk<sub>1..u</sub>)''; fail if that fails
+* For ''i = 1 .. v'':
+** Let ''keygen_ctx<sub>i</sub> = ApplyTweak(keygen_ctx<sub>i-1</sub>, tweak<sub>i</sub>, is_xonly_t<sub>i</sub>)''; fail if that fails
+* Let ''aggpk = GetPubkey(keygen_ctx<sub>v</sub>)''
+* Let ''k<sub>i</sub> = int(hash<sub>MuSig/deterministic/nonce</sub>(sk' || aggothernonce || aggpk || bytes(8, len(m)) || m || bytes(1, i - 1))) mod n'' for ''i = 1,2''
+* Fail if ''k<sub>1</sub> = 0'' or ''k<sub>2</sub> = 0''
+* Let ''R<sup>*</sup><sub>1</sub> = k<sub>1</sub>⋅G, R<sup>*</sup><sub>2</sub> = k<sub>2</sub>⋅G''
+* Let ''pubnonce = cbytes(R<sup>*</sup><sub>1</sub>) || cbytes(R<sup>*</sup><sub>2</sub>)''
+* Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>)''
+* Let ''aggnonce = NonceAgg((pubnonce, aggothernonce)); fail if that fails''
+* Let ''session_ctx = (aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m)''
+* Return ''(pubnonce, Sign(secnonce, sk, session_ctx))''
+
 === Tweaking Definition ===
 
 This MuSig2 specification supports two modes of tweaking that correspond to the following algorithms:
@@ -611,6 +641,7 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
+* '''0.8.1''' (2022-08-26): Add ''DeterministicSign'' algorithm
 * '''0.8.0''' (2022-08-26): Switch from X-only to plain public key inputs. This requires updating a large portion of the test vectors.
 * '''0.7.2''' (2022-08-17): Add ''NonceGen'' and ''Sign/PartialSigVerify'' test vectors for messages longer than 32 bytes.
 * '''0.7.1''' (2022-08-10): Extract test vectors into separate JSON file.
