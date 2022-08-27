@@ -261,8 +261,8 @@ def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[XonlyP
         msg_prefixed += msg
     if extra_in is None:
         extra_in = b''
-    k_1 = nonce_hash(rand, aggpk, 0, msg_prefixed, extra_in)
-    k_2 = nonce_hash(rand, aggpk, 1, msg_prefixed, extra_in)
+    k_1 = nonce_hash(rand, aggpk, 0, msg_prefixed, extra_in) % n
+    k_2 = nonce_hash(rand, aggpk, 1, msg_prefixed, extra_in) % n
     # k_1 == 0 or k_2 == 0 cannot occur except with negligible probability.
     assert k_1 != 0
     assert k_2 != 0
