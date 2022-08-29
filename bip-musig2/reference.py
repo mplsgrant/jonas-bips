@@ -361,6 +361,45 @@ def sign(secnonce: bytes, sk: bytes, session_ctx: SessionContext) -> bytes:
     assert partial_sig_verify_internal(psig, pubnonce, cbytes(P), session_ctx)
     return psig
 
+def det_nonce_hash(sk_: bytes, aggothernonce: bytes, aggpk: bytes, msg: bytes, i: int) -> int:
+    buf = b''
+    buf += sk_
+    buf += aggothernonce
+    buf += aggpk
+    buf += len(msg).to_bytes(8, 'big')
+    buf += msg
+    buf += i.to_bytes(1, 'big')
+    return int_from_bytes(tagged_hash('MuSig/deterministic/nonce', buf))
+
+def deterministic_sign(sk: bytes, aggothernonce: bytes, pubkeys: List[PlainPk], tweaks: List[bytes], is_xonly: List[bool], msg: bytes, rand: Optional[bytes]) -> Tuple[bytes, bytes]:
+    if rand is not None:
+        sk_ = bytes_xor(sk, tagged_hash('MuSig/aux', rand))
+    else:
+        sk_ = sk
+    aggpk = get_xonly_pk(key_agg_and_tweak(pubkeys, tweaks, is_xonly))
+
+    k_1 = det_nonce_hash(sk_, aggothernonce, aggpk, msg, 0) % n
+    k_2 = det_nonce_hash(sk_, aggothernonce, aggpk, msg, 1) % n
+    # k_1 == 0 or k_2 == 0 cannot occur except with negligible probability.
+    assert k_1 != 0
+    assert k_2 != 0
+
+    R_1_ = point_mul(G, k_1)
+    R_2_ = point_mul(G, k_2)
+    assert R_1_ is not None
+    assert R_2_ is not None
+    pubnonce = cbytes(R_1_) + cbytes(R_2_)
+    secnonce = bytes_from_int(k_1) + bytes_from_int(k_2)
+    try:
+        aggnonce = nonce_agg([pubnonce, aggothernonce])
+    except Exception:
+        raise InvalidContributionError(None, "aggothernonce")
+    session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
+    psig = sign(secnonce, sk, session_ctx)
+    # Clear the secnonce after use
+    secnonce = bytes(64)
+    return (pubnonce, psig)
+
 def partial_sig_verify(psig: bytes, pubnonces: List[bytes], pubkeys: List[PlainPk], tweaks: List[bytes], is_xonly: List[bool], msg: bytes, i: int) -> bool:
     if len(pubnonces) != len(pubkeys):
         raise ValueError('The `pubnonces` and `pubkeys` arrays must have the same length.')
@@ -637,6 +676,53 @@ def test_tweak_vectors() -> None:
         session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
         assert_raises(exception, lambda: sign(secnonce, sk, session_ctx), except_fn)
 
+def test_det_sign_vectors() -> None:
+    with open(os.path.join(sys.path[0], 'det_sign_vectors.json')) as f:
+        test_data = json.load(f)
+
+    sk = bytes.fromhex(test_data["sk"])
+    X = fromhex_all(test_data["pubkeys"])
+    # The public key corresponding to sk is at index 0
+    assert X[0] == keygen(sk)
+
+    msgs = fromhex_all(test_data["msgs"])
+
+    valid_test_cases = test_data["valid_test_cases"]
+    error_test_cases = test_data["error_test_cases"]
+
+    for test_case in valid_test_cases:
+        pubkeys = [X[i] for i in test_case["key_indices"]]
+        aggothernonce = bytes.fromhex(test_case["aggothernonce"])
+        tweaks = fromhex_all(test_case["tweaks"])
+        is_xonly = test_case["is_xonly"]
+        msg = msgs[test_case["msg_index"]]
+        signer_index = test_case["signer_index"]
+        rand = bytes.fromhex(test_case["rand"]) if test_case["rand"] is not None else None
+        expected = fromhex_all(test_case["expected"])
+
+        pubnonce, psig = deterministic_sign(sk, aggothernonce, pubkeys, tweaks, is_xonly, msg, rand)
+        assert pubnonce == expected[0]
+        assert psig == expected[1]
+
+        pubnonces = [aggothernonce, pubnonce]
+        aggnonce = nonce_agg(pubnonces)
+        session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
+        assert partial_sig_verify_internal(psig, pubnonce, pubkeys[signer_index], session_ctx)
+
+    for i, test_case in enumerate(error_test_cases):
+        exception, except_fn = get_error_details(test_case)
+
+        pubkeys = [X[i] for i in test_case["key_indices"]]
+        aggothernonce = bytes.fromhex(test_case["aggothernonce"])
+        tweaks = fromhex_all(test_case["tweaks"])
+        is_xonly = test_case["is_xonly"]
+        msg = msgs[test_case["msg_index"]]
+        signer_index = test_case["signer_index"]
+        rand = bytes.fromhex(test_case["rand"]) if test_case["rand"] is not None else None
+
+        try_fn = lambda: deterministic_sign(sk, aggothernonce, pubkeys, tweaks, is_xonly, msg, rand)
+        assert_raises(exception, try_fn, except_fn)
+
 def test_sig_agg_vectors() -> None:
     with open(os.path.join(sys.path[0], 'sig_agg_vectors.json')) as f:
         test_data = json.load(f)
@@ -711,9 +797,16 @@ def test_sign_and_verify_random(iters: int) -> None:
         # Use a non-repeating counter for extra_in
         secnonce_1, pubnonce_1 = nonce_gen(sk_1, aggpk, msg, i.to_bytes(4, 'big'))
 
-        # Use a clock for extra_in
-        t = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
-        secnonce_2, pubnonce_2 = nonce_gen(sk_2, aggpk, msg, t.to_bytes(8, 'big'))
+        # On even iterations use regular signing algorithm for signer 2,
+        # otherwise use deterministic signing algorithm
+        if i % 2 == 0:
+            # Use a clock for extra_in
+            t = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+            secnonce_2, pubnonce_2 = nonce_gen(sk_2, aggpk, msg, t.to_bytes(8, 'big'))
+        else:
+            aggothernonce = nonce_agg([pubnonce_1])
+            rand = secrets.token_bytes(32)
+            pubnonce_2, psig_2 = deterministic_sign(sk_2, aggothernonce, pubkeys, tweaks, is_xonly, msg, rand)
 
         pubnonces = [pubnonce_1, pubnonce_2]
         aggnonce = nonce_agg(pubnonces)
@@ -730,9 +823,10 @@ def test_sign_and_verify_random(iters: int) -> None:
         # Wrong message
         assert not partial_sig_verify(psig_1, pubnonces, pubkeys, tweaks, is_xonly, secrets.token_bytes(32), 0)
 
-        psig_2 = sign(secnonce_2, sk_2, session_ctx)
-        # Clear the secnonce after use
-        secnonce_2 = bytes(64)
+        if i % 2 == 0:
+            psig_2 = sign(secnonce_2, sk_2, session_ctx)
+            # Clear the secnonce after use
+            secnonce_2 = bytes(64)
         assert partial_sig_verify(psig_2, pubnonces, pubkeys, tweaks, is_xonly, msg, 1)
 
         sig = partial_sig_agg([psig_1, psig_2], session_ctx)
@@ -744,5 +838,6 @@ if __name__ == '__main__':
     test_nonce_agg_vectors()
     test_sign_verify_vectors()
     test_tweak_vectors()
+    test_det_sign_vectors()
     test_sig_agg_vectors()
-    test_sign_and_verify_random(4)
+    test_sign_and_verify_random(6)
