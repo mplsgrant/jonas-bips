@@ -400,8 +400,6 @@ def deterministic_sign(sk: bytes, aggothernonce: bytes, pubkeys: List[PlainPk], 
         raise InvalidContributionError(None, "aggothernonce")
     session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
     psig = sign(secnonce, sk, session_ctx)
-    # Clear the secnonce after use
-    secnonce = bytes(64)
     return (pubnonce, psig)
 
 def partial_sig_verify(psig: bytes, pubnonces: List[bytes], pubkeys: List[PlainPk], tweaks: List[bytes], is_xonly: List[bool], msg: bytes, i: int) -> bool:
@@ -826,7 +824,7 @@ def test_sign_and_verify_random(iters: int) -> None:
 
         session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
         psig_1 = sign(secnonce_1, sk_1, session_ctx)
-        # Clear the secnonce after use
+        # Clear the secnonce after use to avoid accidental reuse
         secnonce_1 = bytes(64)
         assert partial_sig_verify(psig_1, pubnonces, pubkeys, tweaks, is_xonly, msg, 0)
 
@@ -838,7 +836,7 @@ def test_sign_and_verify_random(iters: int) -> None:
 
         if i % 2 == 0:
             psig_2 = sign(secnonce_2, sk_2, session_ctx)
-            # Clear the secnonce after use
+            # Clear the secnonce after use to avoid accidental reuse
             secnonce_2 = bytes(64)
         assert partial_sig_verify(psig_2, pubnonces, pubkeys, tweaks, is_xonly, msg, 1)
 
