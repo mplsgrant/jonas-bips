@@ -1,3 +1,9 @@
+# BIP-musig2 reference implementation
+#
+# WARNING: This implementation is for demonstration purposes only and _not_ to
+# be used in production environments. The code is vulnerable to timing attacks,
+# for example.
+
 from typing import Any, List, Optional, Tuple, NewType, NamedTuple
 import hashlib
 import secrets
