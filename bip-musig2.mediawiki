@@ -75,7 +75,7 @@ If all signers behaved honestly, the result passes [https://github.com/bitcoin/b
 
 '''IMPORTANT''': The ''Sign'' algorithm must '''not''' be executed twice with the same ''secnonce''.
 Otherwise, it is possible to extract the secret signing key from the two partial signatures output by the two executions of ''Sign''.
-To avoid accidental reuse of ''secnonce'', an implementation may securely erase the ''secnonce'' argument by overwriting it with 64 zero bytes after it has been read by ''Sign'.
+To avoid accidental reuse of ''secnonce'', an implementation may securely erase the ''secnonce'' argument by overwriting it with 64 zero bytes after it has been read by ''Sign''.
 A ''secnonce'' consisting of only zero bytes is invalid for ''Sign'' and will cause it to fail.
 
 To simplify the specification, some intermediary values are unnecessarily recomputed from scratch, e.g., when executing ''GetSessionValues'' multiple times.
