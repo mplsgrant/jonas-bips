@@ -169,6 +169,10 @@ def keygen(sk: bytes) -> PlainPk:
     assert P is not None
     return PlainPk(cbytes(P))
 
+def key_sort(pubkeys: List[PlainPk]) -> List[PlainPk]:
+    pubkeys.sort()
+    return pubkeys
+
 KeyGenContext = NamedTuple('KeyGenContext', [('Q', Point),
                                              ('gacc', int),
                                              ('tacc', int)])
@@ -477,6 +481,15 @@ def get_error_details(test_case):
     else:
         raise RuntimeError(f"Invalid error type: {error['type']}")
     return exception, except_fn
+
+def test_key_sort_vectors() -> None:
+    with open(os.path.join(sys.path[0], 'key_sort_vectors.json')) as f:
+        test_data = json.load(f)
+
+    X = fromhex_all(test_data["pubkeys"])
+    X_sorted = fromhex_all(test_data["sorted_pubkeys"])
+
+    assert key_sort(X) == X_sorted
 
 def test_key_agg_vectors() -> None:
     with open(os.path.join(sys.path[0], 'key_agg_vectors.json')) as f:
@@ -833,6 +846,7 @@ def test_sign_and_verify_random(iters: int) -> None:
         assert schnorr_verify(msg, aggpk, sig)
 
 if __name__ == '__main__':
+    test_key_sort_vectors()
     test_key_agg_vectors()
     test_nonce_gen_vectors()
     test_nonce_agg_vectors()

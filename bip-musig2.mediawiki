@@ -237,7 +237,7 @@ We write "Let ''(Q, gacc, tacc) = keygen_ctx''" to assign names to the elements 
 
 Input:
 * The number ''u'' of public keys with ''0 < u < 2^32''
-* The public keys ''pk<sub>1..u</sub>'': ''u'' 32-byte arrays
+* The public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
 
 '''''KeySort(pk<sub>1..u</sub>)''''':
 * Return ''pk<sub>1..u</sub>'' sorted in lexicographical order.
@@ -651,6 +651,7 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
+* '''0.8.2''' (2022-08-30): Fix ''KeySort'' input length and add test vectors
 * '''0.8.1''' (2022-08-26): Add ''DeterministicSign'' algorithm
 * '''0.8.0''' (2022-08-26): Switch from X-only to plain public key inputs. This requires updating a large portion of the test vectors.
 * '''0.7.2''' (2022-08-17): Add ''NonceGen'' and ''Sign/PartialSigVerify'' test vectors for messages longer than 32 bytes.
