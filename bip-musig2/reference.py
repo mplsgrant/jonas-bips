@@ -1,3 +1,9 @@
+# BIP-musig2 reference implementation
+#
+# WARNING: This implementation is for demonstration purposes only and _not_ to
+# be used in production environments. The code is vulnerable to timing attacks,
+# for example.
+
 from typing import Any, List, Optional, Tuple, NewType, NamedTuple
 import hashlib
 import secrets
@@ -250,7 +256,7 @@ def nonce_hash(rand: bytes, aggpk: XonlyPk, i: int, msg_prefixed: bytes, extra_i
     buf += i.to_bytes(1, 'big')
     return int_from_bytes(tagged_hash('MuSig/nonce', buf))
 
-def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytes, bytes]:
+def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytearray, bytes]:
     if sk is not None:
         rand = bytes_xor(sk, tagged_hash('MuSig/aux', rand_))
     else:
@@ -275,10 +281,10 @@ def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[XonlyP
     assert R_1_ is not None
     assert R_2_ is not None
     pubnonce = cbytes(R_1_) + cbytes(R_2_)
-    secnonce = bytes_from_int(k_1) + bytes_from_int(k_2)
+    secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2))
     return secnonce, pubnonce
 
-def nonce_gen(sk: Optional[bytes], aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytes, bytes]:
+def nonce_gen(sk: Optional[bytes], aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytearray, bytes]:
     if sk is not None and len(sk) != 32:
         raise ValueError('The optional byte array sk must have length 32.')
     if aggpk is not None and len(aggpk) != 32:
@@ -335,11 +341,13 @@ def get_session_key_agg_coeff(session_ctx: SessionContext, P: Point) -> int:
     (_, pubkeys, _, _, _) = session_ctx
     return key_agg_coeff(pubkeys, PlainPk(cbytes(P)))
 
-# Callers should overwrite secnonce with zeros after calling sign.
-def sign(secnonce: bytes, sk: bytes, session_ctx: SessionContext) -> bytes:
+def sign(secnonce: bytearray, sk: bytes, session_ctx: SessionContext) -> bytes:
     (Q, gacc, _, b, R, e) = get_session_values(session_ctx)
     k_1_ = int_from_bytes(secnonce[0:32])
     k_2_ = int_from_bytes(secnonce[32:64])
+    # Overwrite the secnonce argument with zeros such that subsequent calls of
+    # sign with the same secnonce raise a ValueError.
+    secnonce[:] = bytearray(b'\x00'*64)
     if not 0 < k_1_ < n:
         raise ValueError('first secnonce value is out of range.')
     if not 0 < k_2_ < n:
@@ -393,15 +401,13 @@ def deterministic_sign(sk: bytes, aggothernonce: bytes, pubkeys: List[PlainPk], 
     assert R_1_ is not None
     assert R_2_ is not None
     pubnonce = cbytes(R_1_) + cbytes(R_2_)
-    secnonce = bytes_from_int(k_1) + bytes_from_int(k_2)
+    secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2))
     try:
         aggnonce = nonce_agg([pubnonce, aggothernonce])
     except Exception:
         raise InvalidContributionError(None, "aggothernonce")
     session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
     psig = sign(secnonce, sk, session_ctx)
-    # Clear the secnonce after use
-    secnonce = bytes(64)
     return (pubnonce, psig)
 
 def partial_sig_verify(psig: bytes, pubnonces: List[bytes], pubkeys: List[PlainPk], tweaks: List[bytes], is_xonly: List[bool], msg: bytes, i: int) -> bool:
@@ -562,11 +568,11 @@ def test_sign_verify_vectors() -> None:
     # The public key corresponding to sk is at index 0
     assert X[0] == keygen(sk)
 
-    secnonce = bytes.fromhex(test_data["secnonce"])
+    secnonces = fromhex_all(test_data["secnonces"])
     pnonce = fromhex_all(test_data["pnonces"])
-    # The public nonce corresponding to secnonce is at index 0
-    k1 = int_from_bytes(secnonce[0:32])
-    k2 = int_from_bytes(secnonce[32:64])
+    # The public nonce corresponding to secnonces[0] is at index 0
+    k1 = int_from_bytes(secnonces[0][0:32])
+    k2 = int_from_bytes(secnonces[0][32:64])
     R1 = point_mul(G, k1)
     R2 = point_mul(G, k2)
     assert R1 is not None and R2 is not None
@@ -593,12 +599,11 @@ def test_sign_verify_vectors() -> None:
         expected = bytes.fromhex(test_case["expected"])
 
         session_ctx = SessionContext(aggnonce, pubkeys, [], [], msg)
-        assert sign(secnonce, sk, session_ctx) == expected
-
-        # WARNING: An actual implementation should clear the secnonce after use,
-        # e.g. by setting secnonce = bytes(64) after usage. Reusing the secnonce, as
-        # we do here for testing purposes, can leak the secret key.
-
+        # WARNING: An actual implementation should _not_ copy the secnonce.
+        # Reusing the secnonce, as we do here for testing purposes, can leak the
+        # secret key.
+        secnonce_tmp = bytearray(secnonces[0])
+        assert sign(secnonce_tmp, sk, session_ctx) == expected
         assert partial_sig_verify(expected, pubnonces, pubkeys, [], [], msg, signer_index)
 
     for i, test_case in enumerate(sign_error_test_cases):
@@ -607,6 +612,7 @@ def test_sign_verify_vectors() -> None:
         pubkeys = [X[i] for i in test_case["key_indices"]]
         aggnonce = aggnonces[test_case["aggnonce_index"]]
         msg = msgs[test_case["msg_index"]]
+        secnonce = bytearray(secnonces[test_case["secnonce_index"]])
 
         session_ctx = SessionContext(aggnonce, pubkeys, [], [], msg)
         assert_raises(exception, lambda: sign(secnonce, sk, session_ctx), except_fn)
@@ -640,7 +646,7 @@ def test_tweak_vectors() -> None:
     # The public key corresponding to sk is at index 0
     assert X[0] == keygen(sk)
 
-    secnonce = bytes.fromhex(test_data["secnonce"])
+    secnonce = bytearray(bytes.fromhex(test_data["secnonce"]))
     pnonce = fromhex_all(test_data["pnonces"])
     # The public nonce corresponding to secnonce is at index 0
     k1 = int_from_bytes(secnonce[0:32])
@@ -669,12 +675,11 @@ def test_tweak_vectors() -> None:
         expected = bytes.fromhex(test_case["expected"])
 
         session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
-        assert sign(secnonce, sk, session_ctx) == expected
-
-        # WARNING: An actual implementation should clear the secnonce after use,
-        # e.g. by setting secnonce = bytes(64) after usage. Reusing the secnonce, as
-        # we do here for testing purposes, can leak the secret key.
-
+        secnonce_tmp = bytearray(secnonce)
+        # WARNING: An actual implementation should _not_ copy the secnonce.
+        # Reusing the secnonce, as we do here for testing purposes, can leak the
+        # secret key.
+        assert sign(secnonce_tmp, sk, session_ctx) == expected
         assert partial_sig_verify(expected, pubnonces, pubkeys, tweaks, is_xonly, msg, signer_index)
 
     for i, test_case in enumerate(error_test_cases):
@@ -826,9 +831,9 @@ def test_sign_and_verify_random(iters: int) -> None:
 
         session_ctx = SessionContext(aggnonce, pubkeys, tweaks, is_xonly, msg)
         psig_1 = sign(secnonce_1, sk_1, session_ctx)
-        # Clear the secnonce after use
-        secnonce_1 = bytes(64)
         assert partial_sig_verify(psig_1, pubnonces, pubkeys, tweaks, is_xonly, msg, 0)
+        # An exception is thrown if secnonce_1 is accidentally reused
+        assert_raises(ValueError, lambda: sign(secnonce_1, sk_1, session_ctx), lambda e: True)
 
         # Wrong signer index
         assert not partial_sig_verify(psig_1, pubnonces, pubkeys, tweaks, is_xonly, msg, 1)
@@ -838,8 +843,6 @@ def test_sign_and_verify_random(iters: int) -> None:
 
         if i % 2 == 0:
             psig_2 = sign(secnonce_2, sk_2, session_ctx)
-            # Clear the secnonce after use
-            secnonce_2 = bytes(64)
         assert partial_sig_verify(psig_2, pubnonces, pubkeys, tweaks, is_xonly, msg, 1)
 
         sig = partial_sig_agg([psig_1, psig_2], session_ctx)
