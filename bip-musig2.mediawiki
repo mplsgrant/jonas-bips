@@ -67,7 +67,7 @@ When implementing the specification, make sure to understand this section thorou
 
 The basic order of operations to create a multi-signature with the specification is as follows:
 The signers start by exchanging public keys and computing an aggregate public key using the ''KeyAgg'' algorithm.
-When they want to sign a message, each signer starts the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''.
+When they want to sign a message, each signer starts the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''<ref>When they want to sign a message, each signer starts the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''<ref>We treat the 64-byte ''secnonce'' and 66-byte ''pubnonce'' as grammatically singular even though they are serializations of two scalars and two elliptic curve points, respectively. This treatment may be confusing for readers familiar with the MuSig2 paper. However, serialization is a technical detail that is irrelevant for users of MuSig2 interfaces.</ref>.
 Then, the signers broadcast their ''pubnonce'' to each other and run ''NonceAgg'' to compute an aggregate nonce.
 At this point, every signer has the required data to sign, which, in the specification, is stored in a data structure called [[#session-context|Session Context]].
 After running ''Sign'' with the secret signing key, the ''secnonce'' and the session context, each signer sends their partial signature to an aggregator node, which produces a final signature using ''PartialSigAgg''.
