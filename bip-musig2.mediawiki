@@ -651,7 +651,7 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
-* '''0.8.3''' (2022-08-30): Overwrite ''secnonce'' in ''sign'' reference implementation to help prevent accidental reuse.
+* '''0.8.3''' (2022-09-01): Overwrite ''secnonce'' in ''sign'' reference implementation to help prevent accidental reuse and add test vector for invalid ''secnonce''.
 * '''0.8.2''' (2022-08-30): Fix ''KeySort'' input length and add test vectors
 * '''0.8.1''' (2022-08-26): Add ''DeterministicSign'' algorithm
 * '''0.8.0''' (2022-08-26): Switch from X-only to plain public key inputs. This requires updating a large portion of the test vectors.

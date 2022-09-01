@@ -568,11 +568,11 @@ def test_sign_verify_vectors() -> None:
     # The public key corresponding to sk is at index 0
     assert X[0] == keygen(sk)
 
-    secnonce = bytearray(bytes.fromhex(test_data["secnonce"]))
+    secnonces = fromhex_all(test_data["secnonces"])
     pnonce = fromhex_all(test_data["pnonces"])
-    # The public nonce corresponding to secnonce is at index 0
-    k1 = int_from_bytes(secnonce[0:32])
-    k2 = int_from_bytes(secnonce[32:64])
+    # The public nonce corresponding to secnonces[0] is at index 0
+    k1 = int_from_bytes(secnonces[0][0:32])
+    k2 = int_from_bytes(secnonces[0][32:64])
     R1 = point_mul(G, k1)
     R2 = point_mul(G, k2)
     assert R1 is not None and R2 is not None
@@ -602,7 +602,7 @@ def test_sign_verify_vectors() -> None:
         # WARNING: An actual implementation should _not_ copy the secnonce.
         # Reusing the secnonce, as we do here for testing purposes, can leak the
         # secret key.
-        secnonce_tmp = bytearray(secnonce)
+        secnonce_tmp = bytearray(secnonces[0])
         assert sign(secnonce_tmp, sk, session_ctx) == expected
         assert partial_sig_verify(expected, pubnonces, pubkeys, [], [], msg, signer_index)
 
@@ -612,6 +612,7 @@ def test_sign_verify_vectors() -> None:
         pubkeys = [X[i] for i in test_case["key_indices"]]
         aggnonce = aggnonces[test_case["aggnonce_index"]]
         msg = msgs[test_case["msg_index"]]
+        secnonce = bytearray(secnonces[test_case["secnonce_index"]])
 
         session_ctx = SessionContext(aggnonce, pubkeys, [], [], msg)
         assert_raises(exception, lambda: sign(secnonce, sk, session_ctx), except_fn)
