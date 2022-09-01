@@ -127,7 +127,11 @@ def sig_agg_vectors():
         session_ctx = SessionContext(aggnonce, vec_pubkeys, vec_tweaks, is_xonly, msg)
 
         for j in range(len(key_indices)):
-            psigs[psig_indices[j]] = sign(secnonces[nonce_indices[j]], sk[key_indices[j]], session_ctx)
+            # WARNING: An actual implementation should _not_ copy the secnonce.
+            # Reusing the secnonce, as we do here for testing purposes, can leak the
+            # secret key.
+            secnonce_tmp = bytearray(secnonces[nonce_indices[j]])
+            psigs[psig_indices[j]] = sign(secnonce_tmp, sk[key_indices[j]], session_ctx)
         sig = partial_sig_agg([psigs[i] for i in psig_indices], session_ctx)
         keygen_ctx = key_agg_and_tweak(vec_pubkeys, vec_tweaks, is_xonly)
         # To maximize coverage of the sig_agg algorithm, we want one public key
