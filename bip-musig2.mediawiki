@@ -401,9 +401,9 @@ Algorithm ''Sign(secnonce, sk, session_ctx)'':
 ** The secret key ''sk'': a 32-byte array
 ** The ''session_ctx'': a [[#session-context|Session Context]] data structure
 * Let ''(Q, gacc, _, b, R, e) = GetSessionValues(session_ctx)''; fail if that fails
-* Let ''k'<sub>1</sub> = int(secnonce[0:32]), k'<sub>2</sub> = int(secnonce[32:64])''
-* Fail if ''k'<sub>i</sub> = 0'' or ''k'<sub>i</sub> &ge; n'' for ''i = 1..2''
-* Let ''k<sub>1</sub> = k'<sub>1</sub>, k<sub>2</sub> = k'<sub>2</sub> '' if ''has_even_y(R)'', otherwise let ''k<sub>1</sub> = n - k'<sub>1</sub>, k<sub>2</sub> = n - k'<sub>2</sub>''
+* Let ''k<sub>1</sub>' = int(secnonce[0:32]), k<sub>2</sub>' = int(secnonce[32:64])''
+* Fail if ''k<sub>i</sub>' = 0'' or ''k<sub>i</sub>' &ge; n'' for ''i = 1..2''
+* Let ''k<sub>1</sub> = k<sub>1</sub>', k<sub>2</sub> = k<sub>2</sub>' '' if ''has_even_y(R)'', otherwise let ''k<sub>1</sub> = n - k<sub>1</sub>', k<sub>2</sub> = n - k<sub>2</sub>' ''
 * Let ''d' = int(sk)''
 * Fail if ''d' = 0'' or ''d' &ge; n''
 * Let ''P = d'⋅G''
@@ -412,7 +412,7 @@ Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * <div id="Sign negation"></div>Let ''d = g⋅gacc⋅d' mod n'' (See [[negation-of-the-secret-key-when-signing|Negation Of The Secret Key When Signing]])
 * Let ''s = (k<sub>1</sub> + b⋅k<sub>2</sub> + e⋅a⋅d) mod n''
 * Let ''psig = bytes(32, s)''
-* Let ''pubnonce = cbytes(k'<sub>1</sub>⋅G) || cbytes(k'<sub>2</sub>⋅G)''
+* Let ''pubnonce = cbytes(k<sub>1</sub>'⋅G) || cbytes(k<sub>2</sub>'⋅G)''
 * If ''PartialSigVerifyInternal(psig, pubnonce, cbytes(P), session_ctx)'' (see below) returns failure, abort<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended, but can be omitted if the computation cost is prohibitive.</ref>.
 * Return partial signature ''psig''
 </div>
