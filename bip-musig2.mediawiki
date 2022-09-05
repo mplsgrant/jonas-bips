@@ -237,7 +237,7 @@ We write "Let ''(Q, gacc, tacc) = keygen_ctx''" to assign names to the elements 
 
 Input:
 * The number ''u'' of public keys with ''0 < u < 2^32''
-* The public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
+* The plain public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
 
 '''''KeySort(pk<sub>1..u</sub>)''''':
 * Return ''pk<sub>1..u</sub>'' sorted in lexicographical order.
