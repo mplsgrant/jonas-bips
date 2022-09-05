@@ -137,7 +137,7 @@ def cbytes(P: Point) -> bytes:
     a = b'\x02' if has_even_y(P) else b'\x03'
     return a + bytes_from_point(P)
 
-def cbytes_extended(P: Optional[Point]) -> bytes:
+def cbytes_ext(P: Optional[Point]) -> bytes:
     if is_infinite(P):
         return (0).to_bytes(33, byteorder='big')
     assert P is not None
@@ -163,7 +163,7 @@ def cpoint(x: bytes) -> Point:
     else:
         raise ValueError('x is not a valid compressed point.')
 
-def cpoint_extended(x: bytes) -> Optional[Point]:
+def cpoint_ext(x: bytes) -> Optional[Point]:
     if x == (0).to_bytes(33, 'big'):
         return None
     else:
@@ -303,7 +303,7 @@ def nonce_agg(pubnonces: List[bytes]) -> bytes:
             except ValueError:
                 raise InvalidContributionError(i, "pubnonce")
             R_j = point_add(R_j, R_ij)
-        aggnonce += cbytes_extended(R_j)
+        aggnonce += cbytes_ext(R_j)
     return aggnonce
 
 SessionContext = NamedTuple('SessionContext', [('aggnonce', bytes),
@@ -326,8 +326,8 @@ def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, in
     Q, gacc, tacc = key_agg_and_tweak(pubkeys, tweaks, is_xonly)
     b = int_from_bytes(tagged_hash('MuSig/noncecoef', aggnonce + bytes_from_point(Q) + msg)) % n
     try:
-        R_1 = cpoint_extended(aggnonce[0:33])
-        R_2 = cpoint_extended(aggnonce[33:66])
+        R_1 = cpoint_ext(aggnonce[0:33])
+        R_2 = cpoint_ext(aggnonce[33:66])
     except ValueError:
         # Nonce aggregator sent invalid nonces
         raise InvalidContributionError(None, "aggnonce")
