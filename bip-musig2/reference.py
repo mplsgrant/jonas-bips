@@ -170,8 +170,11 @@ def cpoint_ext(x: bytes) -> Optional[Point]:
         return cpoint(x)
 
 # Return the plain public key corresponding to a given secret key
-def keygen(sk: bytes) -> PlainPk:
-    P = point_mul(G, int_from_bytes(sk))
+def plain_pk_gen(seckey: bytes) -> PlainPk:
+    d0 = int_from_bytes(seckey)
+    if not (1 <= d0 <= n - 1):
+        raise ValueError('The secret key must be an integer in the range 1..n-1.')
+    P = point_mul(G, d0)
     assert P is not None
     return PlainPk(cbytes(P))
 
@@ -566,7 +569,7 @@ def test_sign_verify_vectors() -> None:
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == keygen(sk)
+    assert X[0] == plain_pk_gen(sk)
 
     secnonces = fromhex_all(test_data["secnonces"])
     pnonce = fromhex_all(test_data["pnonces"])
@@ -644,7 +647,7 @@ def test_tweak_vectors() -> None:
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == keygen(sk)
+    assert X[0] == plain_pk_gen(sk)
 
     secnonce = bytearray(bytes.fromhex(test_data["secnonce"]))
     pnonce = fromhex_all(test_data["pnonces"])
@@ -701,7 +704,7 @@ def test_det_sign_vectors() -> None:
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == keygen(sk)
+    assert X[0] == plain_pk_gen(sk)
 
     msgs = fromhex_all(test_data["msgs"])
 
@@ -794,8 +797,8 @@ def test_sign_and_verify_random(iters: int) -> None:
     for i in range(iters):
         sk_1 = secrets.token_bytes(32)
         sk_2 = secrets.token_bytes(32)
-        pk_1 = keygen(sk_1)
-        pk_2 = keygen(sk_2)
+        pk_1 = plain_pk_gen(sk_1)
+        pk_2 = plain_pk_gen(sk_2)
         pubkeys = [pk_1, pk_2]
 
         # In this example, the message and aggregate pubkey are known
