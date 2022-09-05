@@ -191,12 +191,12 @@ The following conventions are used, with constants as defined for [https://www.s
 ** The function ''x[i:j]'', where ''x'' is a byte array and ''i, j &ge; 0'', returns a ''(j - i)''-byte array with a copy of the ''i''-th byte (inclusive) to the ''j''-th byte (exclusive) of ''x''.
 ** The function ''bytes(n, x)'', where ''x'' is an integer, returns the n-byte encoding of ''x'', most significant byte first.
 ** The constant ''empty_bytestring'' refers to the empty byte array. It holds that ''len(empty_bytestring) = 0''.
-** The function ''bytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''bytes(32, x(P))''.
+** The function ''xbytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''bytes(32, x(P))''.
 ** The function ''len(x)'' where ''x'' is a byte array returns the length of the array.
 ** The function ''has_even_y(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''y(P) mod 2 == 0''.
 ** The function ''with_even_y(P)'', where ''P'' is a point, returns ''P'' if ''is_infinite(P)'' or ''has_even_y(P)''. Otherwise,  ''with_even_y(P)'' returns ''-P''.
-** The function ''cbytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''a || bytes(P)'' where ''a'' is a byte that is ''2'' if ''has_even_y(P)'' and ''3'' otherwise.
-** The function ''cbytes_extended(P)'', where ''P'' is a point, returns ''bytes(33, 0)'' if ''is_infinite(P)''. Otherwise, it returns ''cbytes(P)''.
+** The function ''cbytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''a || xbytes(P)'' where ''a'' is a byte that is ''2'' if ''has_even_y(P)'' and ''3'' otherwise.
+** The function ''cbytes_ext(P)'', where ''P'' is a point, returns ''bytes(33, 0)'' if ''is_infinite(P)''. Otherwise, it returns ''cbytes(P)''.
 ** The function ''int(x)'', where ''x'' is a 32-byte array, returns the 256-bit unsigned integer whose most significant byte first encoding is ''x''.
 ** The function ''lift_x(x)'', where ''x'' is an integer in range ''0..2<sup>256</sup>-1'', returns the point ''P'' for which ''x(P) = x''<ref>
     Given a candidate X coordinate ''x'' in the range ''0..p-1'', there exist either exactly two or exactly zero valid Y coordinates. If no valid Y coordinate exists, then ''x'' is not a valid X coordinate either, i.e., no point ''P'' exists for which ''x(P) = x''. The valid Y coordinates for a given candidate ''x'' are the square roots of ''c = x<sup>3</sup> + 7 mod p'' and they can be computed as ''y = &plusmn;c<sup>(p+1)/4</sup> mod p'' (see [https://en.wikipedia.org/wiki/Quadratic_residue#Prime_or_prime_power_modulus Quadratic residue]) if they exist, which can be checked by squaring and comparing with ''c''.</ref> and ''has_even_y(P)'', or fails if ''x'' is greater than ''p-1'' or no such point exists. The function ''lift_x(x)'' is equivalent to the following pseudocode:
@@ -207,7 +207,7 @@ The following conventions are used, with constants as defined for [https://www.s
 *** Let ''y = y' '' if ''y' mod 2 = 0'', otherwise let ''y = p - y' ''.
 *** Return the unique point ''P'' such that ''x(P) = x'' and ''y(P) = y''.
 ** The function ''cpoint(x)'', where ''x'' is a 33-byte array (compressed serialization), sets ''P = lift_x(int(x[1:33]))'' and fails if that fails. If ''x[0] = 2'' it returns ''P'' and if ''x[0] = 3'' it returns ''-P''. Otherwise, it fails.
-** The function ''cpoint_extended(x)'', where ''x'' is a 33-byte array (compressed serialization), returns the point at infinity if ''x = bytes(33, 0)''. Otherwise, it returns ''cpoint(x)'' and fails if that fails.
+** The function ''cpoint_ext(x)'', where ''x'' is a 33-byte array (compressed serialization), returns the point at infinity if ''x = bytes(33, 0)''. Otherwise, it returns ''cpoint(x)'' and fails if that fails.
 ** The function ''hash<sub>tag</sub>(x)'' where ''tag'' is a UTF-8 encoded tag name and ''x'' is a byte array returns the 32-byte hash ''SHA256(SHA256(tag) || SHA256(tag) || x)''.
 * Other:
 ** Tuples are written by listing the elements within parentheses and separated by commas. For example, ''(2, 3, 1)'' is a tuple.
@@ -226,7 +226,7 @@ We write "Let ''(Q, gacc, tacc) = keygen_ctx''" to assign names to the elements 
 <div>
 Algorithm ''GetXonlyPubkey(keygen_ctx)'':
 * Let ''(Q, _, _) = keygen_ctx''
-* Return ''bytes(Q)''
+* Return ''xbytes(Q)''
 </div>
 
 <div>
@@ -348,11 +348,11 @@ Algorithm ''NonceAgg(pubnonce<sub>1..u</sub>)'':
 * Inputs:
 ** The number ''u'' of ''pubnonces'' with ''0 < u < 2^32''
 ** The public nonces ''pubnonce<sub>1..u</sub>'': ''u'' 66-byte arrays
-* For ''j = 1 .. 2'':
-** For ''i = 1 .. u'':
-*** Let ''R<sub>i,j</sub> = cpoint(pubnonce<sub>i</sub>[(j-1)*33:j*33])''; fail if that fails
-** Let ''R<sub>j</sub> = R<sub>1,j</sub> + R<sub>2,j</sub> + ... + R<sub>u,j</sub>''
-* Return ''aggnonce = cbytes_extended(R<sub>1</sub>) || cbytes_extended(R<sub>2</sub>)''
+* For ''i = 1 .. 2'':
+** For ''j = 1 .. u'':
+*** Let ''R<sub>i,j</sub> = cpoint(pubnonce<sub>j</sub>[(i-1)*33:i*33])''; fail if that fails
+** Let ''R<sub>i</sub> = R<sub>i,1</sub> + R<sub>i,2</sub> + ... + R<sub>i,u</sub>''
+* Return ''aggnonce = cbytes_ext(R<sub>1</sub>) || cbytes_ext(R<sub>2</sub>)''
 </div>
 
 === Session Context ===
@@ -375,14 +375,14 @@ Algorithm ''GetSessionValues(session_ctx)'':
 * For ''i = 1 .. v'':
 ** Let ''keygen_ctx<sub>i</sub> = ApplyTweak(keygen_ctx<sub>i-1</sub>, tweak<sub>i</sub>, is_xonly_t<sub>i</sub>)''; fail if that fails
 * Let ''(Q, gacc, tacc) = keygen_ctx<sub>v</sub>''
-* Let ''b = int(hash<sub>MuSig/noncecoef</sub>(aggnonce || bytes(Q) || m)) mod n''
-* Let ''R<sub>1</sub> = cpoint_extended(aggnonce[0:33]), R<sub>2</sub> = cpoint_extended(aggnonce[33:66])''; fail if that fails
+* Let ''b = int(hash<sub>MuSig/noncecoef</sub>(aggnonce || xbytes(Q) || m)) mod n''
+* Let ''R<sub>1</sub> = cpoint_ext(aggnonce[0:33]), R<sub>2</sub> = cpoint_ext(aggnonce[33:66])''; fail if that fails
 * Let ''R' = R<sub>1</sub> + b⋅R<sub>2</sub>''
 * If ''is_infinite(R'):
 ** Let ''R = G'' (see [[#dealing-with-infinity-in-nonce-aggregation|Dealing with Infinity in Nonce Aggregation]])
 * Else:
 ** Let ''R = R' ''
-* Let ''e = int(hash<sub>BIP0340/challenge</sub>(bytes(R) || bytes(Q) || m)) mod n''
+* Let ''e = int(hash<sub>BIP0340/challenge</sub>(xbytes(R) || xbytes(Q) || m)) mod n''
 * Return ''(Q, gacc, tacc, b, R, e)''
 </div>
 
@@ -465,7 +465,7 @@ Algorithm ''PartialSigAgg(psig<sub>1..u</sub>, session_ctx)'':
 ** Let ''s<sub>i</sub> = int(psig<sub>i</sub>)''; fail if ''s<sub>i</sub> &ge; n''.
 * Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
 * Let ''s = s<sub>1</sub> + ... + s<sub>u</sub> + e⋅g⋅tacc mod n''
-* Return ''sig = ''bytes(R) || bytes(32, s)''
+* Return ''sig = ''xbytes(R) || bytes(32, s)''
 </div>
 
 === Test Vectors and Reference Code ===
@@ -649,7 +649,7 @@ Since this is a valuable feature, we modify MuSig2* (which is defined in the app
 
 This modification to ''GetSessionValues'' does not affect the unforgeability of the scheme.
 Given a successful adversary against the unforgeability game (EUF-CMA) for the modified scheme, a reduction can win the unforgeability game for the original scheme by simulating the modification towards the adversary:
-When the adversary provides ''aggnonce' = bytes(33, 0) || bytes(33, 0)'', the reduction sets ''aggnonce = cbytes_extended(G) || bytes(33, 0)''.
+When the adversary provides ''aggnonce' = bytes(33, 0) || bytes(33, 0)'', the reduction sets ''aggnonce = cbytes_ext(G) || bytes(33, 0)''.
 For any other ''aggnonce' '', the reduction sets ''aggnonce = aggnonce' ''.
 (The case that the adversary provides an ''aggnonce' ≠ bytes(33, 0) || bytes(33, 0) '' but nevertheless ''R' '' in ''GetSessionValues'' is the point at infinity happens only with negligible probability.)
 
@@ -679,6 +679,7 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
+* '''0.8.5''' (2022-09-05): Rename some functions to improve clarity.
 * '''0.8.4''' (2022-09-02): Make naming of nonce variants ''R'' in specification and reference code easier to read and more consistent.
 * '''0.8.3''' (2022-09-01): Overwrite ''secnonce'' in ''sign'' reference implementation to help prevent accidental reuse and add test vector for invalid ''secnonce''.
 * '''0.8.2''' (2022-08-30): Fix ''KeySort'' input length and add test vectors

@@ -65,9 +65,6 @@ def point_mul(P: Optional[Point], n: int) -> Optional[Point]:
 def bytes_from_int(x: int) -> bytes:
     return x.to_bytes(32, byteorder="big")
 
-def bytes_from_point(P: Point) -> bytes:
-    return bytes_from_int(x(P))
-
 def lift_x(b: bytes) -> Optional[Point]:
     x = int_from_bytes(b)
     if x >= p:
@@ -133,11 +130,14 @@ class InvalidContributionError(Exception):
 
 infinity = None
 
+def xbytes(P: Point) -> bytes:
+    return bytes_from_int(x(P))
+
 def cbytes(P: Point) -> bytes:
     a = b'\x02' if has_even_y(P) else b'\x03'
-    return a + bytes_from_point(P)
+    return a + xbytes(P)
 
-def cbytes_extended(P: Optional[Point]) -> bytes:
+def cbytes_ext(P: Optional[Point]) -> bytes:
     if is_infinite(P):
         return (0).to_bytes(33, byteorder='big')
     assert P is not None
@@ -163,15 +163,18 @@ def cpoint(x: bytes) -> Point:
     else:
         raise ValueError('x is not a valid compressed point.')
 
-def cpoint_extended(x: bytes) -> Optional[Point]:
+def cpoint_ext(x: bytes) -> Optional[Point]:
     if x == (0).to_bytes(33, 'big'):
         return None
     else:
         return cpoint(x)
 
 # Return the plain public key corresponding to a given secret key
-def keygen(sk: bytes) -> PlainPk:
-    P = point_mul(G, int_from_bytes(sk))
+def plain_pk_gen(seckey: bytes) -> PlainPk:
+    d0 = int_from_bytes(seckey)
+    if not (1 <= d0 <= n - 1):
+        raise ValueError('The secret key must be an integer in the range 1..n-1.')
+    P = point_mul(G, d0)
     assert P is not None
     return PlainPk(cbytes(P))
 
@@ -185,7 +188,7 @@ KeyGenContext = NamedTuple('KeyGenContext', [('Q', Point),
 
 def get_xonly_pk(keygen_ctx: KeyGenContext) -> XonlyPk:
     Q, _, _ = keygen_ctx
-    return XonlyPk(bytes_from_point(Q))
+    return XonlyPk(xbytes(Q))
 
 def key_agg(pubkeys: List[PlainPk]) -> KeyGenContext:
     pk2 = get_second_key(pubkeys)
@@ -303,7 +306,7 @@ def nonce_agg(pubnonces: List[bytes]) -> bytes:
             except ValueError:
                 raise InvalidContributionError(i, "pubnonce")
             R_j = point_add(R_j, R_ij)
-        aggnonce += cbytes_extended(R_j)
+        aggnonce += cbytes_ext(R_j)
     return aggnonce
 
 SessionContext = NamedTuple('SessionContext', [('aggnonce', bytes),
@@ -324,17 +327,17 @@ def key_agg_and_tweak(pubkeys: List[PlainPk], tweaks: List[bytes], is_xonly: Lis
 def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, int, Point, int]:
     (aggnonce, pubkeys, tweaks, is_xonly, msg) = session_ctx
     Q, gacc, tacc = key_agg_and_tweak(pubkeys, tweaks, is_xonly)
-    b = int_from_bytes(tagged_hash('MuSig/noncecoef', aggnonce + bytes_from_point(Q) + msg)) % n
+    b = int_from_bytes(tagged_hash('MuSig/noncecoef', aggnonce + xbytes(Q) + msg)) % n
     try:
-        R_1 = cpoint_extended(aggnonce[0:33])
-        R_2 = cpoint_extended(aggnonce[33:66])
+        R_1 = cpoint_ext(aggnonce[0:33])
+        R_2 = cpoint_ext(aggnonce[33:66])
     except ValueError:
         # Nonce aggregator sent invalid nonces
         raise InvalidContributionError(None, "aggnonce")
     R_ = point_add(R_1, point_mul(R_2, b))
     R = R_ if not is_infinite(R_) else G
     assert R is not None
-    e = int_from_bytes(tagged_hash('BIP0340/challenge', bytes_from_point(R) + bytes_from_point(Q) + msg)) % n
+    e = int_from_bytes(tagged_hash('BIP0340/challenge', xbytes(R) + xbytes(Q) + msg)) % n
     return (Q, gacc, tacc, b, R, e)
 
 def get_session_key_agg_coeff(session_ctx: SessionContext, P: Point) -> int:
@@ -447,7 +450,7 @@ def partial_sig_agg(psigs: List[bytes], session_ctx: SessionContext) -> bytes:
         s = (s + s_i) % n
     g = 1 if has_even_y(Q) else n - 1
     s = (s + e * g * tacc) % n
-    return bytes_from_point(R) + bytes_from_int(s)
+    return xbytes(R) + bytes_from_int(s)
 #
 # The following code is only used for testing.
 #
@@ -566,7 +569,7 @@ def test_sign_verify_vectors() -> None:
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == keygen(sk)
+    assert X[0] == plain_pk_gen(sk)
 
     secnonces = fromhex_all(test_data["secnonces"])
     pnonce = fromhex_all(test_data["pnonces"])
@@ -644,7 +647,7 @@ def test_tweak_vectors() -> None:
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == keygen(sk)
+    assert X[0] == plain_pk_gen(sk)
 
     secnonce = bytearray(bytes.fromhex(test_data["secnonce"]))
     pnonce = fromhex_all(test_data["pnonces"])
@@ -701,7 +704,7 @@ def test_det_sign_vectors() -> None:
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == keygen(sk)
+    assert X[0] == plain_pk_gen(sk)
 
     msgs = fromhex_all(test_data["msgs"])
 
@@ -794,8 +797,8 @@ def test_sign_and_verify_random(iters: int) -> None:
     for i in range(iters):
         sk_1 = secrets.token_bytes(32)
         sk_2 = secrets.token_bytes(32)
-        pk_1 = keygen(sk_1)
-        pk_2 = keygen(sk_2)
+        pk_1 = plain_pk_gen(sk_1)
+        pk_2 = plain_pk_gen(sk_2)
         pubkeys = [pk_1, pk_2]
 
         # In this example, the message and aggregate pubkey are known
