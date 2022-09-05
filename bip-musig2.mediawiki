@@ -559,8 +559,8 @@ In order to produce a partial signature for an X-only public key that is an aggr
 
 <poem>
 The following elliptic curve points arise as intermediate steps in the MuSig2 protocol:
-• ''P<sub>i</sub>'' as computed in ''KeyAgg'' is the point corresponding to the ''i''-th signer's plain public key. Defining ''d'<sub>i</sub>'' to be the ''i''-th signer's secret key as an integer, i.e. the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
-    ''P<sub>i</sub> = d'<sub>i</sub>⋅G ''.
+• ''P<sub>i</sub>'' as computed in ''KeyAgg'' is the point corresponding to the ''i''-th signer's plain public key. Defining ''d<sub>i</sub>' '' to be the ''i''-th signer's secret key as an integer, i.e. the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
+    ''P<sub>i</sub> = d<sub>i</sub>'⋅G ''.
 • ''Q<sub>0</sub>'' is the aggregate of the signers' public keys. It is identical to value ''Q'' computed in ''KeyAgg'' and therefore defined as
     ''Q<sub>0</sub> = a<sub>1</sub>⋅P<sub>1</sub> + a<sub>2</sub>⋅P<sub>2</sub> + ... + a<sub>u</sub>⋅P<sub>u</sub>''.
 • ''Q<sub>i</sub>'' is the tweaked public key after the ''i''-th execution of ''ApplyTweak'' for ''1 &le; i &le; v''. It holds that
@@ -609,11 +609,11 @@ Then we have
     ''with_even_y(Q<sub>v</sub>) - g<sub>v</sub>⋅tacc<sub>v</sub>⋅G
         = g<sub>v</sub>⋅gacc<sub>v</sub>⋅Q<sub>0</sub>
         = g<sub>v</sub>⋅gacc<sub>v</sub>⋅(a<sub>1</sub>⋅P<sub>1</sub> + ... + a<sub>u</sub>⋅P<sub>u</sub>)
-        = g<sub>v</sub>⋅gacc<sub>v</sub>⋅(a<sub>1</sub>⋅d'<sub>1</sub>⋅G + ... + a<sub>u</sub>⋅d'<sub>u</sub>⋅G)
-        = sum<sub>i=1..u</sub>(g<sub>v</sub>⋅gacc<sub>v</sub>⋅a<sub>i</sub>⋅d'<sub>i</sub>)*G''.
+        = g<sub>v</sub>⋅gacc<sub>v</sub>⋅(a<sub>1</sub>⋅d<sub>1</sub>'⋅G + ... + a<sub>u</sub>⋅d<sub>u</sub>'⋅G)
+        = sum<sub>i=1..u</sub>(g<sub>v</sub>⋅gacc<sub>v</sub>⋅a<sub>i</sub>⋅d<sub>i</sub>')*G''.
 </poem>
 
-Intuitively, ''gacc<sub>i</sub>'' tracks accumulated sign flipping and ''tacc<sub>i</sub>'' tracks the accumulated tweak value after applying the first ''i'' individual tweaks. Additionally, ''g<sub>v</sub>'' indicates whether ''Q<sub>v</sub>'' needed to be negated to produce the final X-only result. Thus, signer ''i'' multiplies its secret key ''d'<sub>i</sub>'' with ''g<sub>v</sub>⋅gacc<sub>v</sub>'' in the ''[[#Sign negation|Sign]]'' algorithm.
+Intuitively, ''gacc<sub>i</sub>'' tracks accumulated sign flipping and ''tacc<sub>i</sub>'' tracks the accumulated tweak value after applying the first ''i'' individual tweaks. Additionally, ''g<sub>v</sub>'' indicates whether ''Q<sub>v</sub>'' needed to be negated to produce the final X-only result. Thus, signer ''i'' multiplies its secret key ''d<sub>i</sub>' '' with ''g<sub>v</sub>⋅gacc<sub>v</sub>'' in the ''[[#Sign negation|Sign]]'' algorithm.
 
 ==== Negation Of The Public Key When Partially Verifying ====
 
