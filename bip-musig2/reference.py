@@ -65,9 +65,6 @@ def point_mul(P: Optional[Point], n: int) -> Optional[Point]:
 def bytes_from_int(x: int) -> bytes:
     return x.to_bytes(32, byteorder="big")
 
-def bytes_from_point(P: Point) -> bytes:
-    return bytes_from_int(x(P))
-
 def lift_x(b: bytes) -> Optional[Point]:
     x = int_from_bytes(b)
     if x >= p:
@@ -133,9 +130,12 @@ class InvalidContributionError(Exception):
 
 infinity = None
 
+def xbytes(P: Point) -> bytes:
+    return bytes_from_int(x(P))
+
 def cbytes(P: Point) -> bytes:
     a = b'\x02' if has_even_y(P) else b'\x03'
-    return a + bytes_from_point(P)
+    return a + xbytes(P)
 
 def cbytes_ext(P: Optional[Point]) -> bytes:
     if is_infinite(P):
@@ -185,7 +185,7 @@ KeyGenContext = NamedTuple('KeyGenContext', [('Q', Point),
 
 def get_xonly_pk(keygen_ctx: KeyGenContext) -> XonlyPk:
     Q, _, _ = keygen_ctx
-    return XonlyPk(bytes_from_point(Q))
+    return XonlyPk(xbytes(Q))
 
 def key_agg(pubkeys: List[PlainPk]) -> KeyGenContext:
     pk2 = get_second_key(pubkeys)
@@ -324,7 +324,7 @@ def key_agg_and_tweak(pubkeys: List[PlainPk], tweaks: List[bytes], is_xonly: Lis
 def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, int, Point, int]:
     (aggnonce, pubkeys, tweaks, is_xonly, msg) = session_ctx
     Q, gacc, tacc = key_agg_and_tweak(pubkeys, tweaks, is_xonly)
-    b = int_from_bytes(tagged_hash('MuSig/noncecoef', aggnonce + bytes_from_point(Q) + msg)) % n
+    b = int_from_bytes(tagged_hash('MuSig/noncecoef', aggnonce + xbytes(Q) + msg)) % n
     try:
         R_1 = cpoint_ext(aggnonce[0:33])
         R_2 = cpoint_ext(aggnonce[33:66])
@@ -334,7 +334,7 @@ def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, in
     R_ = point_add(R_1, point_mul(R_2, b))
     R = R_ if not is_infinite(R_) else G
     assert R is not None
-    e = int_from_bytes(tagged_hash('BIP0340/challenge', bytes_from_point(R) + bytes_from_point(Q) + msg)) % n
+    e = int_from_bytes(tagged_hash('BIP0340/challenge', xbytes(R) + xbytes(Q) + msg)) % n
     return (Q, gacc, tacc, b, R, e)
 
 def get_session_key_agg_coeff(session_ctx: SessionContext, P: Point) -> int:
@@ -447,7 +447,7 @@ def partial_sig_agg(psigs: List[bytes], session_ctx: SessionContext) -> bytes:
         s = (s + s_i) % n
     g = 1 if has_even_y(Q) else n - 1
     s = (s + e * g * tacc) % n
-    return bytes_from_point(R) + bytes_from_int(s)
+    return xbytes(R) + bytes_from_int(s)
 #
 # The following code is only used for testing.
 #

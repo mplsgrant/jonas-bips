@@ -191,11 +191,11 @@ The following conventions are used, with constants as defined for [https://www.s
 ** The function ''x[i:j]'', where ''x'' is a byte array and ''i, j &ge; 0'', returns a ''(j - i)''-byte array with a copy of the ''i''-th byte (inclusive) to the ''j''-th byte (exclusive) of ''x''.
 ** The function ''bytes(n, x)'', where ''x'' is an integer, returns the n-byte encoding of ''x'', most significant byte first.
 ** The constant ''empty_bytestring'' refers to the empty byte array. It holds that ''len(empty_bytestring) = 0''.
-** The function ''bytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''bytes(32, x(P))''.
+** The function ''xbytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''bytes(32, x(P))''.
 ** The function ''len(x)'' where ''x'' is a byte array returns the length of the array.
 ** The function ''has_even_y(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''y(P) mod 2 == 0''.
 ** The function ''with_even_y(P)'', where ''P'' is a point, returns ''P'' if ''is_infinite(P)'' or ''has_even_y(P)''. Otherwise,  ''with_even_y(P)'' returns ''-P''.
-** The function ''cbytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''a || bytes(P)'' where ''a'' is a byte that is ''2'' if ''has_even_y(P)'' and ''3'' otherwise.
+** The function ''cbytes(P)'', where ''P'' is a point for which ''not is_infinite(P)'', returns ''a || xbytes(P)'' where ''a'' is a byte that is ''2'' if ''has_even_y(P)'' and ''3'' otherwise.
 ** The function ''cbytes_ext(P)'', where ''P'' is a point, returns ''bytes(33, 0)'' if ''is_infinite(P)''. Otherwise, it returns ''cbytes(P)''.
 ** The function ''int(x)'', where ''x'' is a 32-byte array, returns the 256-bit unsigned integer whose most significant byte first encoding is ''x''.
 ** The function ''lift_x(x)'', where ''x'' is an integer in range ''0..2<sup>256</sup>-1'', returns the point ''P'' for which ''x(P) = x''<ref>
@@ -226,7 +226,7 @@ We write "Let ''(Q, gacc, tacc) = keygen_ctx''" to assign names to the elements 
 <div>
 Algorithm ''GetXonlyPubkey(keygen_ctx)'':
 * Let ''(Q, _, _) = keygen_ctx''
-* Return ''bytes(Q)''
+* Return ''xbytes(Q)''
 </div>
 
 <div>
@@ -375,14 +375,14 @@ Algorithm ''GetSessionValues(session_ctx)'':
 * For ''i = 1 .. v'':
 ** Let ''keygen_ctx<sub>i</sub> = ApplyTweak(keygen_ctx<sub>i-1</sub>, tweak<sub>i</sub>, is_xonly_t<sub>i</sub>)''; fail if that fails
 * Let ''(Q, gacc, tacc) = keygen_ctx<sub>v</sub>''
-* Let ''b = int(hash<sub>MuSig/noncecoef</sub>(aggnonce || bytes(Q) || m)) mod n''
+* Let ''b = int(hash<sub>MuSig/noncecoef</sub>(aggnonce || xbytes(Q) || m)) mod n''
 * Let ''R<sub>1</sub> = cpoint_ext(aggnonce[0:33]), R<sub>2</sub> = cpoint_ext(aggnonce[33:66])''; fail if that fails
 * Let ''R' = R<sub>1</sub> + b⋅R<sub>2</sub>''
 * If ''is_infinite(R'):
 ** Let ''R = G'' (see [[#dealing-with-infinity-in-nonce-aggregation|Dealing with Infinity in Nonce Aggregation]])
 * Else:
 ** Let ''R = R' ''
-* Let ''e = int(hash<sub>BIP0340/challenge</sub>(bytes(R) || bytes(Q) || m)) mod n''
+* Let ''e = int(hash<sub>BIP0340/challenge</sub>(xbytes(R) || xbytes(Q) || m)) mod n''
 * Return ''(Q, gacc, tacc, b, R, e)''
 </div>
 
@@ -465,7 +465,7 @@ Algorithm ''PartialSigAgg(psig<sub>1..u</sub>, session_ctx)'':
 ** Let ''s<sub>i</sub> = int(psig<sub>i</sub>)''; fail if ''s<sub>i</sub> &ge; n''.
 * Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
 * Let ''s = s<sub>1</sub> + ... + s<sub>u</sub> + e⋅g⋅tacc mod n''
-* Return ''sig = ''bytes(R) || bytes(32, s)''
+* Return ''sig = ''xbytes(R) || bytes(32, s)''
 </div>
 
 === Test Vectors and Reference Code ===
