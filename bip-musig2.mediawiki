@@ -348,10 +348,10 @@ Algorithm ''NonceAgg(pubnonce<sub>1..u</sub>)'':
 * Inputs:
 ** The number ''u'' of ''pubnonces'' with ''0 < u < 2^32''
 ** The public nonces ''pubnonce<sub>1..u</sub>'': ''u'' 66-byte arrays
-* For ''i = 1 .. 2'':
-** For ''j = 1 .. u'':
-*** Let ''R<sub>i,j</sub> = cpoint(pubnonce<sub>j</sub>[(i-1)*33:i*33])''; fail if that fails
-** Let ''R<sub>i</sub> = R<sub>i,1</sub> + R<sub>i,2</sub> + ... + R<sub>i,u</sub>''
+* For ''j = 1 .. 2'':
+** For ''i = 1 .. u'':
+*** Let ''R<sub>i,j</sub> = cpoint(pubnonce<sub>i</sub>[(j-1)*33:j*33])''; fail if that fails
+** Let ''R<sub>j</sub> = R<sub>1,j</sub> + R<sub>2,j</sub> + ... + R<sub>u,j</sub>''
 * Return ''aggnonce = cbytes_ext(R<sub>1</sub>) || cbytes_ext(R<sub>2</sub>)''
 </div>
 
