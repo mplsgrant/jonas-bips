@@ -55,7 +55,7 @@
             "is_xonly": [true, false, true, false],
             "signer_index": 2,
             "expected": "B255FDCAC27B40C7CE7848E2D3B7BF5EA0ED756DA81565AC804CCCA3E1D5D239",
-            "comment": "Four tweaks: x-only, plain, x-only, plain"
+            "comment": "Four tweaks: x-only, plain, x-only, plain. If an implementation prohibits applying plain tweaks after x-only tweaks, it can skip this test vector or return an error."
         }
     ],
     "error_test_cases": [
