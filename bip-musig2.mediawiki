@@ -141,13 +141,25 @@ Stateless signers may want to consider signing deterministically (see [[#modific
 
 === Identifying Disruptive Signers ===
 
-If the signing session fails to output a valid signature, each honest signer is able to identify at least one disruptive signer, who sent invalid contributions in the session.
-Additionally, if the honest signers agree on the set of messages sent by all signers in the signing session, then the honest signers will identify the same disruptive signer.
+The signing protocol makes it possible to identify malicious signers who send invalid contributions to a signing session in order to make the signing session abort and prevent the honest signers from obtaining a valid signature.
+This property is called "identifiable aborts" and ensures that honest parties can assign blame to malicious signers who cause an abort in the signing protocol.
 
-If any signer sends an invalid partial signature, i.e., one that has not then been created with ''Sign'' and the right arguments for the session, the MuSig2 protocol may fail to output a valid Schnorr signature.
-This standard provides the method ''PartialSigVerify'' to verify the correctness of partial signatures.
-If partial signatures are received over authenticated channels, this method can be used to identify disruptive signers and hold them accountable.
-Note that partial signatures are ''not'' signatures.
+Aborts are identifiable for an honest party if the following conditions hold in a signing session:
+* The contributions received from all signers have not been tampered with (e.g., because they were sent over authenticated connections).
+* Nonce aggregation is performed honestly (e.g., because the honest signer performs nonce aggregation on its own or because the aggregator is trusted).
+* The partial signatures received from all signers are verified using the algorithm ''PartialSigVerify''.
+
+If these conditions hold and an honest party (signer or aggregator) runs an algorithm that fails due to invalid protocol contributions from malicious signers, then the algorithm run by the honest party will output the index of exactly one malicious signer.
+Additionally, if the honest parties agree on the contributions sent by all signers in the signing session, all the honest parties who run the aborting algorithm will identify the same malicious signer.
+
+==== Further remarks ====
+
+Some of the algorithms in this specification may also assign blame to a malicious aggregator.
+While this is possible for some particular misbehavior of the aggregator, it is not guaranteed that a malicious aggregator can be identified.
+More specifically, a malicious aggregator (whose existence violates the second condition above) can always make signing abort and wrongly hold honest signers accountable for the abort (e.g., by claiming to have received an invalid contribution from a particular honest signer).
+
+The only purpose of the algorithm ''PartialSigVerify'' is to ensure identifiable aborts, and it is not necessary to use it when identifiable aborts are not desired.
+In particular, partial signatures are ''not'' signatures.
 An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'', but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b this writeup].</ref>.
 However, if ''PartialSigVerify'' succeeds for all partial signatures then ''PartialSigAgg'' will return a valid Schnorr signature.<ref>Given a list of public keys, it is an open question whether a valid BIP-340 signature for the aggregate of the public keys is proof of knowledge of the secret keys corresponding to the input list.</ref>
 
