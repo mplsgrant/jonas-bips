@@ -59,9 +59,11 @@ This specification is written with a focus on clarity.
 As a result, the specified algorithms are not always optimal in terms of computation and space.
 In particular, some values are recomputed but can be cached in actual implementations (see [[#signing-flow|Signing Flow]]).
 
-== Description of Signing Flow ==
+== Overview ==
 
 When implementing the specification, make sure to understand this section thoroughly to avoid subtle mistakes that may lead to catastrophic failure.
+
+=== General Signing Flow ===
 
 The basic order of operations to create a multi-signature with the specification is as follows:
 The signers start by exchanging public keys and computing an aggregate public key using the ''KeyAgg'' algorithm.
@@ -172,7 +174,7 @@ Plain tweaking can be used to derive child public keys from an aggregate public 
 On the other hand, X-only tweaking is required for Taproot tweaking per [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341].
 A Taproot-tweaked public key commits to a ''script path'', allowing users to create transaction outputs that are spendable either with a MuSig2 multi-signature or by providing inputs that satisfy the script path.
 
-== Specification ==
+== Algorithms ==
 
 === Notation ===
 
