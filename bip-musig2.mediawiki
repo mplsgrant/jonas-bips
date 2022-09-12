@@ -55,13 +55,25 @@ The MuSig2 variant in this specification stands out by combining all of the foll
 * '''MuSig2* optimization''': The specification uses an optimization that allows saving a point multiplication in key aggregation. The MuSig2 scheme with this optimization is called MuSig2* and proven secure in the appendix of the [https://eprint.iacr.org/2020/1261 MuSig2 paper]. The optimization is that the second distinct key in the list of public keys given to the key aggregation algorithm (as well as any keys identical to this key) gets the constant key aggregation coefficient ''1''.
 * '''Parameterization of MuSig2 and security''': In this specification, each signer's nonce consists of two elliptic curve points. The [https://eprint.iacr.org/2020/1261 MuSig2 paper] gives distinct security proofs depending on the number of points that constitute a nonce. See section [[#choosing-the-size-of-the-nonce|Choosing the Size of the Nonce]] for a discussion.
 
+== Overview ==
+
+Implementers of the specification must make sure to understand this section thoroughly to avoid subtle mistakes that may lead to catastrophic failure.
+
 This specification is written with a focus on clarity.
 As a result, the specified algorithms are not always optimal in terms of computation and space.
 In particular, some values are recomputed but can be cached in actual implementations (see [[#signing-flow|Signing Flow]]).
 
-== Overview ==
+This BIP aims to provide a standard that supports a wide range of possible application scenarios.
+Given a specific application scenario, some features supported by this standard may be unnecessary or not desirable, and implementations can choose not to support them.
 
-When implementing the specification, make sure to understand this section thoroughly to avoid subtle mistakes that may lead to catastrophic failure.
+Such features include:
+* Applying plain tweaks after x-only tweaks.
+* Applying tweaks at all.
+* Dealing with messages that are not exactly 32 bytes.
+* Identifying a disruptive signer after aborting (aborting itself remains mandatory).
+* Dealing with duplicate public keys in key aggregation.
+If applicable, the corresponding algorithms should simply fail when encountering inputs unsupported by a particular implementation. (For example, the signing algorithm may fail when given a message which is not 32 bytes.)
+Similarly, the test vectors that exercise the unimplemented features should be re-interpreted to expect an error, or be skipped if appropriate.
 
 === General Signing Flow ===
 
@@ -482,7 +494,7 @@ The reference implementation is for demonstration purposes only and not to be us
 
 === Modifications to Nonce Generation ===
 
-Implementors must avoid modifying the ''NonceGen'' algorithm without being fully aware of the implications.
+Implementers must avoid modifying the ''NonceGen'' algorithm without being fully aware of the implications.
 We provide two modifications that are secure when applied correctly and may be useful in special circumstances, summarized in the following table.
 
 {| class="wikitable" style="margin:auto"
