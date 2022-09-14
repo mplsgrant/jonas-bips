@@ -50,7 +50,7 @@ The MuSig2 variant in this specification stands out by combining all of the foll
 * '''Tweaking for BIP32 derivations and Taproot''': The specification supports tweaking aggregate public keys and signing for tweaked aggregate public keys. We distinguish two modes of tweaking: ''Plain'' tweaking can be used to derive child aggregate public keys per [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32]. ''X-only'' tweaking, on the other hand, allows creating a [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] tweak to add script paths to a Taproot output. See section [[#tweaking|Tweaking]] below for details.
 * '''Non-interactive signing with preprocessing''': The first communication round, exchanging the nonces, can happen before the message or even the exact set of signers is determined. Therefore, the signers can view it as a preprocessing step. Later, when the parameters of the signing session are chosen, they can send partial signatures without additional interaction.
 * '''Key aggregation optionally independent of order''': The output of the key aggregation algorithm depends on the order of the input public keys. The specification defines a function to sort the public keys before key aggregation. This will ensure the same output, independent of the initial order. Key aggregation does not sort the public keys by default because applications often already have a canonical order of signers. Nonetheless, applications using this specification can mandate sorting before aggregation<ref>Applications that sort input public keys before aggregation should ensure that the sort implementation is reasonably efficient, and in particular does not degenerate to quadratic runtime on pathological inputs.</ref>.
-* '''Third party nonce aggregation''': Instead of every signer sending their nonce to every other signer, it is possible to use an untrusted third party that collects all signers' nonces, computes an aggregate nonce, and broadcasts it to the signers. This reduces the communication complexity from quadratic to linear in the number of signers. If the aggregator sends an incorrect aggregate nonce, the signing session will fail to produce a valid Schnorr signature. However, the aggregator cannot negatively affect the unforgeability of the scheme.
+* '''Third-party nonce and partial signature aggregation''': Instead of every signer sending their nonce and partial signature to every other signer, it is possible to use an untrusted third-party ''aggregator'' in order to reduce the communication complexity from quadratic to linear in the number of signers. In each of the two rounds, the aggregator collects all signers' contributions (nonces or partial signatures), aggregates them, and broadcasts the aggregate back to the signers. A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme.
 * '''Partial signature verification''': If any signer sends a partial signature contribution that was not created by honestly following the protocol, the signing session will fail to produce a valid Schnorr signature. This standard specifies a partial signature verification algorithm to identify disruptive signers. It is incompatible with third-party nonce aggregation because the individual nonce is required for partial verification.
 * '''MuSig2* optimization''': The specification uses an optimization that allows saving a point multiplication in key aggregation. The MuSig2 scheme with this optimization is called MuSig2* and proven secure in the appendix of the [https://eprint.iacr.org/2020/1261 MuSig2 paper]. The optimization is that the second distinct key in the list of public keys given to the key aggregation algorithm (as well as any keys identical to this key) gets the constant key aggregation coefficient ''1''.
 * '''Parameterization of MuSig2 and security''': In this specification, each signer's nonce consists of two elliptic curve points. The [https://eprint.iacr.org/2020/1261 MuSig2 paper] gives distinct security proofs depending on the number of points that constitute a nonce. See section [[#choosing-the-size-of-the-nonce|Choosing the Size of the Nonce]] for a discussion.
@@ -63,13 +63,20 @@ In particular, some values are recomputed but can be cached in actual implementa
 
 When implementing the specification, make sure to understand this section thoroughly to avoid subtle mistakes that may lead to catastrophic failure.
 
-The basic order of operations to create a multi-signature with the specification is as follows:
 The signers start by exchanging public keys and computing an aggregate public key using the ''KeyAgg'' algorithm.
-When they want to sign a message, each signer starts the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''<ref>We treat the 64-byte ''secnonce'' and 66-byte ''pubnonce'' as grammatically singular even though they are serializations of two scalars and two elliptic curve points, respectively. This treatment may be confusing for readers familiar with the MuSig2 paper. However, serialization is a technical detail that is irrelevant for users of MuSig2 interfaces.</ref>.
+Whenever they want to sign a message, the basic order of operations to create a multi-signature with the specification is as follows:
+
+'''First broadcast round:''' 
+The signers start the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''<ref>We treat the 64-byte ''secnonce'' and 66-byte ''pubnonce'' as grammatically singular even though they are serializations of two scalars and two elliptic curve points, respectively. This treatment may be confusing for readers familiar with the MuSig2 paper. However, serialization is a technical detail that is irrelevant for users of MuSig2 interfaces.</ref>.
 Then, the signers broadcast their ''pubnonce'' to each other and run ''NonceAgg'' to compute an aggregate nonce.
+
+'''Second broadcast round:''' 
 At this point, every signer has the required data to sign, which, in the specification, is stored in a data structure called [[#session-context|Session Context]].
-After running ''Sign'' with the secret signing key, the ''secnonce'' and the session context, each signer sends their partial signature to an aggregator node, which produces a final signature using ''PartialSigAgg''.
+Every signer computes a partial signature by running ''Sign'' with the secret signing key, the ''secnonce'' and the session context.
+Then, the signers broadcast their partial signatures to each other and run ''PartialSigAgg'' to obtain the final signature.
 If all signers behaved honestly, the result passes [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340] verification.
+
+Both broadcast rounds can be optimized by using an aggregator who collects all signers' nonces or partial signatures, aggregates them using ''NonceAgg'' or ''PartialSigAgg'', respectively, and broadcasts the aggregated result back to the signers. A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme, i.e., even a malicious aggregator colluding with all but one signer cannot forge a signature.
 
 '''IMPORTANT''': The ''Sign'' algorithm must '''not''' be executed twice with the same ''secnonce''.
 Otherwise, it is possible to extract the secret signing key from the two partial signatures output by the two executions of ''Sign''.
@@ -130,8 +137,7 @@ Moreover, this method is not compatible with the defense-in-depth mechanism desc
 
 Instead of every signer broadcasting their ''pubnonce'' to every other signer, the signers can send their ''pubnonce'' to a single aggregator node that runs ''NonceAgg'' and sends the ''aggnonce'' back to the signers.
 This technique reduces the overall communication.
-The aggregator node does not need to be trusted for the scheme's security to hold.
-All the aggregator node can do is prevent the signing session from succeeding by sending out incorrect aggregate nonces.
+A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme.
 
 In general, MuSig2 signers are stateful in the sense that they first generate ''secnonce'' and then need to store it until they receive the other signers' ''pubnonces'' or the ''aggnonce''.
 However, it is possible for one of the signers to be stateless.
