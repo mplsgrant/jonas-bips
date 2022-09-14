@@ -141,13 +141,25 @@ Stateless signers may want to consider signing deterministically (see [[#modific
 
 === Identifying Disruptive Signers ===
 
-If the signing session fails to output a valid signature, each honest signer will identify at least one disruptive signer, who sent incorrect contributions in the session.
-Additionally, if the honest signers agree on the set of messages sent by all signers in the signing session, then the honest signers will identify the same disruptive signer.
+The signing protocol makes it possible to identify malicious signers who send invalid contributions to a signing session in order to make the signing session abort and prevent the honest signers from obtaining a valid signature.
+This property is called "identifiable aborts" and ensures that honest parties can assign blame to malicious signers who cause an abort in the signing protocol.
 
-If any signer sends an incorrect partial signature, i.e., one that has not then been created with ''Sign'' and the right arguments for the session, the MuSig2 protocol may fail to output a valid Schnorr signature.
-This standard provides the method ''PartialSigVerify'' to verify the correctness of partial signatures.
-If partial signatures are received over authenticated channels, this method can be used to identify disruptive signers and hold them accountable.
-Note that partial signatures are ''not'' signatures.
+Aborts are identifiable for an honest party if the following conditions hold in a signing session:
+* The contributions received from all signers have not been tampered with (e.g., because they were sent over authenticated connections).
+* Nonce aggregation is performed honestly (e.g., because the honest signer performs nonce aggregation on its own or because the aggregator is trusted).
+* The partial signatures received from all signers are verified using the algorithm ''PartialSigVerify''.
+
+If these conditions hold and an honest party (signer or aggregator) runs an algorithm that fails due to invalid protocol contributions from malicious signers, then the algorithm run by the honest party will output the index of exactly one malicious signer.
+Additionally, if the honest parties agree on the contributions sent by all signers in the signing session, all the honest parties who run the aborting algorithm will identify the same malicious signer.
+
+==== Further remarks ====
+
+Some of the algorithms in this specification may also assign blame to a malicious aggregator.
+While this is possible for some particular misbehavior of the aggregator, it is not guaranteed that a malicious aggregator can be identified.
+More specifically, a malicious aggregator (whose existence violates the second condition above) can always make signing abort and wrongly hold honest signers accountable for the abort (e.g., by claiming to have received an invalid contribution from a particular honest signer).
+
+The only purpose of the algorithm ''PartialSigVerify'' is to ensure identifiable aborts, and it is not necessary to use it when identifiable aborts are not desired.
+In particular, partial signatures are ''not'' signatures.
 An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'', but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b this writeup].</ref>.
 However, if ''PartialSigVerify'' succeeds for all partial signatures then ''PartialSigAgg'' will return a valid Schnorr signature.<ref>Given a list of public keys, it is an open question whether a valid BIP-340 signature for the aggregate of the public keys is proof of knowledge of the secret keys corresponding to the input list.</ref>
 
@@ -254,7 +266,7 @@ Algorithm ''KeyAgg(pk<sub>1..u</sub>)'':
 ** The plain public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
 * Let ''pk2 = GetSecondKey(pk<sub>1..u</sub>)''
 * For ''i = 1 .. u'':
-** Let ''P<sub>i</sub> = cpoint(pk<sub>i</sub>)''; fail if that fails.
+** Let ''P<sub>i</sub> = cpoint(pk<sub>i</sub>)''; fail if that fails and blame signer ''i'' for invalid public key.
 ** Let ''a<sub>i</sub> = KeyAggCoeffInternal(pk<sub>1..u</sub>, pk<sub>i</sub>, pk2)''.
 * Let ''Q = a<sub>1</sub>⋅P<sub>1</sub> + a<sub>2</sub>⋅P<sub>2</sub> + ... + a<sub>u</sub>⋅P<sub>u</sub>''
 * Fail if ''is_infinite(Q)''.
@@ -348,10 +360,10 @@ Algorithm ''NonceAgg(pubnonce<sub>1..u</sub>)'':
 * Inputs:
 ** The number ''u'' of ''pubnonces'' with ''0 < u < 2^32''
 ** The public nonces ''pubnonce<sub>1..u</sub>'': ''u'' 66-byte arrays
-* For ''i = 1 .. 2'':
-** For ''j = 1 .. u'':
-*** Let ''R<sub>i,j</sub> = cpoint(pubnonce<sub>j</sub>[(i-1)*33:i*33])''; fail if that fails
-** Let ''R<sub>i</sub> = R<sub>i,1</sub> + R<sub>i,2</sub> + ... + R<sub>i,u</sub>''
+* For ''j = 1 .. 2'':
+** For ''i = 1 .. u'':
+*** Let ''R<sub>i,j</sub> = cpoint(pubnonce<sub>i</sub>[(j-1)*33:j*33])''; fail if that fails and blame signer ''i'' for invalid ''pubnonce''.
+** Let ''R<sub>j</sub> = R<sub>1,j</sub> + R<sub>2,j</sub> + ... + R<sub>u,j</sub>''
 * Return ''aggnonce = cbytes_ext(R<sub>1</sub>) || cbytes_ext(R<sub>2</sub>)''
 </div>
 
@@ -376,7 +388,7 @@ Algorithm ''GetSessionValues(session_ctx)'':
 ** Let ''keygen_ctx<sub>i</sub> = ApplyTweak(keygen_ctx<sub>i-1</sub>, tweak<sub>i</sub>, is_xonly_t<sub>i</sub>)''; fail if that fails
 * Let ''(Q, gacc, tacc) = keygen_ctx<sub>v</sub>''
 * Let ''b = int(hash<sub>MuSig/noncecoef</sub>(aggnonce || xbytes(Q) || m)) mod n''
-* Let ''R<sub>1</sub> = cpoint_ext(aggnonce[0:33]), R<sub>2</sub> = cpoint_ext(aggnonce[33:66])''; fail if that fails
+* Let ''R<sub>1</sub> = cpoint_ext(aggnonce[0:33]), R<sub>2</sub> = cpoint_ext(aggnonce[33:66])''; fail if that fails and blame nonce aggregator for invalid ''aggnonce''.
 * Let ''R' = R<sub>1</sub> + b⋅R<sub>2</sub>''
 * If ''is_infinite(R'):
 ** Let ''R = G'' (see [[#dealing-with-infinity-in-nonce-aggregation|Dealing with Infinity in Nonce Aggregation]])
@@ -462,7 +474,7 @@ Algorithm ''PartialSigAgg(psig<sub>1..u</sub>, session_ctx)'':
 ** The ''session_ctx'': a [[#session-context|Session Context]] data structure
 * Let ''(Q, _, tacc, _, _, R, e) = GetSessionValues(session_ctx)''; fail if that fails
 * For ''i = 1 .. u'':
-** Let ''s<sub>i</sub> = int(psig<sub>i</sub>)''; fail if ''s<sub>i</sub> &ge; n''.
+** Let ''s<sub>i</sub> = int(psig<sub>i</sub>)''; fail if ''s<sub>i</sub> &ge; n'' and blame signer ''i'' for invalid partial signature.
 * Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
 * Let ''s = s<sub>1</sub> + ... + s<sub>u</sub> + e⋅g⋅tacc mod n''
 * Return ''sig = ''xbytes(R) || bytes(32, s)''
@@ -531,7 +543,7 @@ Algorithm ''DeterministicSign(sk, aggothernonce, pk<sub>1..u</sub>, tweak<sub>1.
 * Let ''R<sub>⁎,1</sub> = k<sub>1</sub>⋅G, R<sub>⁎,2</sub> = k<sub>2</sub>⋅G''
 * Let ''pubnonce = cbytes(R<sub>⁎,2</sub>) || cbytes(R<sub>⁎,2</sub>)''
 * Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>)''
-* Let ''aggnonce = NonceAgg((pubnonce, aggothernonce)); fail if that fails''
+* Let ''aggnonce = NonceAgg((pubnonce, aggothernonce))''; fail if that fails and blame nonce aggregator for invalid ''aggothernonce''.
 * Let ''session_ctx = (aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m)''
 * Return ''(pubnonce, Sign(secnonce, sk, session_ctx))''
 </div>
