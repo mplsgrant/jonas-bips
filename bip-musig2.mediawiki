@@ -40,7 +40,7 @@ Moreover, MuSig2 offers a '''higher level of privacy''' than <code>OP_CHECKSIGAD
 There are multi-signature schemes other than MuSig2 that are fully compatible with Schnorr signatures.
 The MuSig2 variant in this specification stands out by combining all of the following features:
 * '''Simple Key Setup''': Key aggregation is non-interactive and fully compatible with BIP340 public keys.
-* '''Two Communication Rounds''': MuSig2 is faster in practice than previous three-round multi-signature protocols such as MuSig1, particularly when signers are connected through high-latency anonymous links. Moreover, the need for fewer communication rounds simplifies the specification and reduces the probability that implementations and users make security-relevant mistakes.
+* '''Two Communication Rounds''': MuSig2 is faster in practice than previous three-round multi-signature protocols such as [https://eprint.iacr.org/2018/068.pdf MuSig1], particularly when signers are connected through high-latency anonymous links. Moreover, the need for fewer communication rounds simplifies the specification and reduces the probability that implementations and users make security-relevant mistakes.
 * '''Provable security''': MuSig2 has been [https://eprint.iacr.org/2020/1261.pdf proven existentially unforgeable] under the algebraic one-more discrete logarithm (AOMDL) assumption (instead of the discrete logarithm assumption required for single-signer Schnorr signatures). AOMDL is a falsifiable and weaker variant of the well-studied OMDL problem.
 * '''Low complexity''': MuSig2 has a substantially lower computational and implementation complexity than alternative schemes like [https://eprint.iacr.org/2020/1057 MuSig-DN]. However, this comes at the cost of having no ability to generate nonces deterministically and the requirement to securely handle signing state.
 
@@ -57,16 +57,13 @@ The MuSig2 variant in this specification stands out by combining all of the foll
 
 == Overview ==
 
-Implementers of the specification must make sure to understand this section thoroughly to avoid subtle mistakes that may lead to catastrophic failure.
+Implementers of this specification must make sure to understand this section thoroughly to avoid subtle mistakes that may lead to catastrophic failure.
 
-This specification is written with a focus on clarity.
-As a result, the specified algorithms are not always optimal in terms of computation and space.
-In particular, some values are recomputed but can be cached in actual implementations (see [[#signing-flow|Signing Flow]]).
+=== Optionality of Features ===
 
-This BIP aims to provide a standard that supports a wide range of possible application scenarios.
-Given a specific application scenario, some features supported by this standard may be unnecessary or not desirable, and implementations can choose not to support them.
-
-Such features include:
+The goal of this specification is to support a wide range of possible application scenarios.
+Given a specific application scenario, some features supported by this specification may be unnecessary or not desirable, and implementers can choose not to support them.
+Such optional features include:
 * Applying plain tweaks after x-only tweaks.
 * Applying tweaks at all.
 * Dealing with messages that are not exactly 32 bytes.
@@ -205,6 +202,10 @@ On the other hand, X-only tweaking is required for Taproot tweaking per [https:/
 A Taproot-tweaked public key commits to a ''script path'', allowing users to create transaction outputs that are spendable either with a MuSig2 multi-signature or by providing inputs that satisfy the script path.
 
 == Algorithms ==
+
+This specification is written with a focus on clarity.
+As a result, the specified algorithms are not always optimal in terms of computation and space.
+In particular, some values are recomputed but can be cached in actual implementations (see [[#signing-flow|Signing Flow]]).
 
 === Notation ===
 
@@ -688,9 +689,10 @@ For any other ''aggnonce' '', the reduction sets ''aggnonce = aggnonce' ''.
 === Choosing the Size of the Nonce ===
 
 The [https://eprint.iacr.org/2020/1261 MuSig2 paper] contains two security proofs that apply to different protocol variants.
-The first is for a variant where each signer's nonce consists of four elliptic curve points and uses the random oracle model (ROM).
-In the second variant, the signers' nonces consist of only two points.
-Its proof requires a stronger model, namely the combination of the ROM and the algebraic group model (AGM).
+The first proof relies on the random oracle model (ROM) and applies to a protocol variant where each signer's nonce consists of four elliptic curve points.
+The second proof requires a stronger model, namely the combination of the ROM and the algebraic group model (AGM),
+and applies to an optimized protocol variant where the signers' nonces consist of only two points.
+This document uses the latter, optimized protocol variant.
 Relying on the stronger model is a legitimate choice for the following reasons:
 
 First, an approach widely taken is interpreting a Forking Lemma proof in the ROM merely as design justification and ignoring the loss of security due to the Forking Lemma.
