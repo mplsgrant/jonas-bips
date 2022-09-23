@@ -77,11 +77,11 @@ Similarly, the test vectors that exercise the unimplemented features should be r
 The signers start by exchanging public keys and computing an aggregate public key using the ''KeyAgg'' algorithm.
 Whenever they want to sign a message, the basic order of operations to create a multi-signature with the specification is as follows:
 
-'''First broadcast round:''' 
+'''First broadcast round:'''
 The signers start the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''<ref>We treat the 64-byte ''secnonce'' and 66-byte ''pubnonce'' as grammatically singular even though they are serializations of two scalars and two elliptic curve points, respectively. This treatment may be confusing for readers familiar with the MuSig2 paper. However, serialization is a technical detail that is irrelevant for users of MuSig2 interfaces.</ref>.
 Then, the signers broadcast their ''pubnonce'' to each other and run ''NonceAgg'' to compute an aggregate nonce.
 
-'''Second broadcast round:''' 
+'''Second broadcast round:'''
 At this point, every signer has the required data to sign, which, in the specification, is stored in a data structure called [[#session-context|Session Context]].
 Every signer computes a partial signature by running ''Sign'' with the secret signing key, the ''secnonce'' and the session context.
 Then, the signers broadcast their partial signatures to each other and run ''PartialSigAgg'' to obtain the final signature.
@@ -412,9 +412,9 @@ Algorithm ''GetSessionValues(session_ctx)'':
 * Let ''R<sub>1</sub> = cpoint_ext(aggnonce[0:33]), R<sub>2</sub> = cpoint_ext(aggnonce[33:66])''; fail if that fails and blame nonce aggregator for invalid ''aggnonce''.
 * Let ''R' = R<sub>1</sub> + b⋅R<sub>2</sub>''
 * If ''is_infinite(R'):
-** Let ''R = G'' (see [[#dealing-with-infinity-in-nonce-aggregation|Dealing with Infinity in Nonce Aggregation]])
+** Let final nonce ''R = G'' (see [[#dealing-with-infinity-in-nonce-aggregation|Dealing with Infinity in Nonce Aggregation]])
 * Else:
-** Let ''R = R' ''
+** Let final nonce ''R = R' ''
 * Let ''e = int(hash<sub>BIP0340/challenge</sub>(xbytes(R) || xbytes(Q) || m)) mod n''
 * Return ''(Q, gacc, tacc, b, R, e)''
 </div>
@@ -476,7 +476,7 @@ Internal Algorithm ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)''
 * Let ''s = int(psig)''; fail if ''s &ge; n''
 * Let ''R<sub>⁎,1</sub> = cpoint(pubnonce[0:33]), R<sub>⁎,2</sub> = cpoint(pubnonce[33:66])''
 * Let ''Re<sub>⁎</sub>' = R<sub>⁎,1</sub> + b⋅R<sub>⁎,2</sub>''
-* Let ''Re<sub>⁎</sub> = Re<sub>⁎</sub>' '' if ''has_even_y(R)'', otherwise let ''Re<sub>⁎</sub> = -Re<sub>⁎</sub>' ''
+* Let effective nonce ''Re<sub>⁎</sub> = Re<sub>⁎</sub>' '' if ''has_even_y(R)'', otherwise let ''Re<sub>⁎</sub> = -Re<sub>⁎</sub>' ''
 * Let ''P = cpoint(pk)''; fail if that fails
 * Let ''a = GetSessionKeyAggCoeff(session_ctx, P)''; fail if that fails
 * Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
