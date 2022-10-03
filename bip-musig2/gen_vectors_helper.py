@@ -16,7 +16,7 @@ def gen_key_agg_vectors():
     print("  tweak: ", tweak.hex().upper())
 
 def check_sign_verify_vectors():
-    with open(os.path.join(sys.path[0], 'sign_verify_vectors.json')) as f:
+    with open(os.path.join(sys.path[0], 'vectors', 'sign_verify_vectors.json')) as f:
         test_data = json.load(f)
     X = fromhex_all(test_data["pubkeys"])
     pnonce = fromhex_all(test_data["pnonces"])
@@ -44,7 +44,7 @@ def check_sign_verify_vectors():
            assert has_even_y(Q) and has_even_y(R)
 
 def check_tweak_vectors():
-    with open(os.path.join(sys.path[0], 'tweak_vectors.json')) as f:
+    with open(os.path.join(sys.path[0], 'vectors', 'tweak_vectors.json')) as f:
         test_data = json.load(f)
 
     X = fromhex_all(test_data["pubkeys"])
