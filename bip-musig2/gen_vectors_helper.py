@@ -73,7 +73,7 @@ def sig_agg_vectors():
         "FC2BF9E056B273AF0A8AABB815E541A3552C142AC10D4FE584F01D2CAB84F577"])
     pubkeys = list(map(lambda secret: plain_pk_gen(secret), sk))
     indices32 = [i.to_bytes(32, 'big') for i in range(6)]
-    secnonces, pnonces = zip(*[nonce_gen_internal(r, None, None, None, None) for r in indices32])
+    secnonces, pnonces = zip(*[nonce_gen_internal(r, None, pubkeys[0], None, None, None) for r in indices32])
     tweaks = fromhex_all([
         "B511DA492182A91B0FFB9A98020D55F260AE86D7ECBD0399C7383D59A5F2AF7C",
         "A815FE049EE3C5AAB66310477FBC8BCCCAC2F3395F59F921C364ACD78A2F48DC",

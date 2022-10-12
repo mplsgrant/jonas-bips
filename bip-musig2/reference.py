@@ -248,9 +248,11 @@ def apply_tweak(keygen_ctx: KeyGenContext, tweak: bytes, is_xonly: bool) -> KeyG
 def bytes_xor(a: bytes, b: bytes) -> bytes:
     return bytes(x ^ y for x, y in zip(a, b))
 
-def nonce_hash(rand: bytes, aggpk: XonlyPk, i: int, msg_prefixed: bytes, extra_in: bytes) -> int:
+def nonce_hash(rand: bytes, pk: PlainPk, aggpk: XonlyPk, i: int, msg_prefixed: bytes, extra_in: bytes) -> int:
     buf = b''
     buf += rand
+    buf += len(pk).to_bytes(1, 'big')
+    buf += pk
     buf += len(aggpk).to_bytes(1, 'big')
     buf += aggpk
     buf += msg_prefixed
@@ -259,7 +261,7 @@ def nonce_hash(rand: bytes, aggpk: XonlyPk, i: int, msg_prefixed: bytes, extra_i
     buf += i.to_bytes(1, 'big')
     return int_from_bytes(tagged_hash('MuSig/nonce', buf))
 
-def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytearray, bytes]:
+def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], pk: PlainPk, aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytearray, bytes]:
     if sk is not None:
         rand = bytes_xor(sk, tagged_hash('MuSig/aux', rand_))
     else:
@@ -274,8 +276,8 @@ def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[XonlyP
         msg_prefixed += msg
     if extra_in is None:
         extra_in = b''
-    k_1 = nonce_hash(rand, aggpk, 0, msg_prefixed, extra_in) % n
-    k_2 = nonce_hash(rand, aggpk, 1, msg_prefixed, extra_in) % n
+    k_1 = nonce_hash(rand, pk, aggpk, 0, msg_prefixed, extra_in) % n
+    k_2 = nonce_hash(rand, pk, aggpk, 1, msg_prefixed, extra_in) % n
     # k_1 == 0 or k_2 == 0 cannot occur except with negligible probability.
     assert k_1 != 0
     assert k_2 != 0
@@ -287,13 +289,13 @@ def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], aggpk: Optional[XonlyP
     secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2))
     return secnonce, pubnonce
 
-def nonce_gen(sk: Optional[bytes], aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytearray, bytes]:
+def nonce_gen(sk: Optional[bytes], pk: PlainPk, aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytearray, bytes]:
     if sk is not None and len(sk) != 32:
         raise ValueError('The optional byte array sk must have length 32.')
     if aggpk is not None and len(aggpk) != 32:
         raise ValueError('The optional byte array aggpk must have length 32.')
     rand_ = secrets.token_bytes(32)
-    return nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)
+    return nonce_gen_internal(rand_, sk, pk, aggpk, msg, extra_in)
 
 def nonce_agg(pubnonces: List[bytes]) -> bytes:
     u = len(pubnonces)
@@ -529,20 +531,26 @@ def test_nonce_gen_vectors() -> None:
         test_data = json.load(f)
 
     for test_case in test_data["test_cases"]:
-        def get_value(key):
+        def get_value(key) -> bytes:
+            return bytes.fromhex(test_case[key])
+
+        def get_value_maybe(key) -> Optional[bytes]:
             if test_case[key] is not None:
-                return bytes.fromhex(test_case[key])
+                return get_value(key)
             else:
                 return None
 
         rand_ = get_value("rand_")
-        sk = get_value("sk")
-        aggpk = get_value("aggpk")
-        msg = get_value("msg")
-        extra_in = get_value("extra_in")
+        sk = get_value_maybe("sk")
+        pk = PlainPk(get_value("pk"))
+        aggpk = get_value_maybe("aggpk")
+        if aggpk is not None:
+            aggpk = XonlyPk(aggpk)
+        msg = get_value_maybe("msg")
+        extra_in = get_value_maybe("extra_in")
         expected = get_value("expected")
 
-        assert nonce_gen_internal(rand_, sk, aggpk, msg, extra_in)[0] == expected
+        assert nonce_gen_internal(rand_, sk, pk, aggpk, msg, extra_in)[0] == expected
 
 def test_nonce_agg_vectors() -> None:
     with open(os.path.join(sys.path[0], 'vectors', 'nonce_agg_vectors.json')) as f:
@@ -816,14 +824,14 @@ def test_sign_and_verify_random(iters: int) -> None:
         aggpk = get_xonly_pk(key_agg_and_tweak(pubkeys, tweaks, is_xonly))
 
         # Use a non-repeating counter for extra_in
-        secnonce_1, pubnonce_1 = nonce_gen(sk_1, aggpk, msg, i.to_bytes(4, 'big'))
+        secnonce_1, pubnonce_1 = nonce_gen(sk_1, pk_1, aggpk, msg, i.to_bytes(4, 'big'))
 
         # On even iterations use regular signing algorithm for signer 2,
         # otherwise use deterministic signing algorithm
         if i % 2 == 0:
             # Use a clock for extra_in
             t = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
-            secnonce_2, pubnonce_2 = nonce_gen(sk_2, aggpk, msg, t.to_bytes(8, 'big'))
+            secnonce_2, pubnonce_2 = nonce_gen(sk_2, pk_2, aggpk, msg, t.to_bytes(8, 'big'))
         else:
             aggothernonce = nonce_agg([pubnonce_1])
             rand = secrets.token_bytes(32)

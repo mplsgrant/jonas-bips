@@ -132,14 +132,14 @@ Since MuSig2 key aggregation would accept the duplicate keys and not error out, 
 In contrast to BIP340 signing, the values ''k<sub>1</sub>'' and ''k<sub>2</sub>'' '''must not be derived deterministically''' from the session parameters because otherwise active attackers can  [https://medium.com/blockstream/musig-dn-schnorr-multisignatures-with-verifiably-deterministic-nonces-27424b5df9d6#e3b6 trick the victim into reusing a nonce].
 
 The optional arguments to ''NonceGen'' enable a defense-in-depth mechanism that may prevent secret key exposure if ''rand' '' is accidentally not drawn uniformly at random.
-If the value ''rand' '' was identical in two ''NonceGen'' invocations, but any optional argument was different, the ''secnonce'' would still be guaranteed be different as well (with overwhelming probability), and thus accidentally using the same ''secnonce'' for ''Sign'' in both sessions would be avoided.
+If the value ''rand' '' was identical in two ''NonceGen'' invocations, but any other argument was different, the ''secnonce'' would still be guaranteed be different as well (with overwhelming probability), and thus accidentally using the same ''secnonce'' for ''Sign'' in both sessions would be avoided.
 Therefore, it is recommended to provide the optional arguments ''sk'', ''aggpk'', and ''m'' if these session parameters are already determined during nonce generation.
 The auxiliary input ''extra_in'' can contain additional contextual data that has a chance of changing between ''NonceGen'' runs,
 e.g., a supposedly unique session id (taken from the application), a session counter wide enough not to repeat in practice, any nonces by other signers (if already known), or the serialization of a data structure containing multiple of the above.
 However, the protection provided by the optional arguments should only be viewed as a last resort.
 In most conceivable scenarios, the assumption that the arguments are different between two executions of ''NonceGen'' is relatively strong, particularly when facing an active attacker.
 
-In some applications, it is beneficial to generate and exchange ''pubnonces'' before the signer's secret key, the final set of signers, or the message to sign is known.
+In some applications, it is beneficial to generate and send a ''pubnonce'' before the other signers, their public keys, or the message to sign is known.
 In this case, only the available arguments are provided to the ''NonceGen'' algorithm.
 After this preprocessing phase, the ''Sign'' algorithm can be run immediately when the message and set of signers is determined.
 This way, the final signature is created quicker and with fewer roundtrips.
@@ -347,9 +347,10 @@ Algorithm ''ApplyTweak(keygen_ctx, tweak, is_xonly_t)'':
 === Nonce Generation ===
 
 <div>
-Algorithm ''NonceGen(sk, aggpk, m, extra_in)'':
+Algorithm ''NonceGen(sk, pk, aggpk, m, extra_in)'':
 * Inputs:
 ** The secret signing key ''sk'': a 32-byte array (optional argument)
+** The plain public key ''pk'': a 33-byte array (see [[#modifications-to-nonce-generation|Modifications to Nonce Generation]] for the reason that this argument is mandatory)
 ** The aggregate x-only public key ''aggpk'': a 32-byte array (optional argument)
 ** The message ''m'': a byte array (optional argument)<ref name="mlen">In theory, the allowed message size is restricted because SHA256 accepts byte strings only up to size of 2^61-1 bytes (and because of the 8-byte length encoding).</ref>
 ** The auxiliary input ''extra_in'': a byte array with ''0 &le; len(extra_in) &le; 2<sup>32</sup>-1'' (optional argument)
@@ -366,7 +367,7 @@ Algorithm ''NonceGen(sk, aggpk, m, extra_in)'':
 ** Let ''m_prefixed = bytes(1, 1) || bytes(8, len(m)) || m''
 * If the optional argument ''extra_in'' is not present:
 ** Let ''extra_in = empty_bytestring''
-* Let ''k<sub>i</sub> = int(hash<sub>MuSig/nonce</sub>(rand || bytes(1, len(aggpk)) || aggpk || m_prefixed || bytes(4, len(extra_in)) || extra_in || bytes(1, i - 1))) mod n'' for ''i = 1,2''
+* Let ''k<sub>i</sub> = int(hash<sub>MuSig/nonce</sub>(rand || bytes(1, len(pk)) || pk || bytes(1, len(aggpk)) || aggpk || m_prefixed || bytes(4, len(extra_in)) || extra_in || bytes(1, i - 1))) mod n'' for ''i = 1,2''
 * Fail if ''k<sub>1</sub> = 0'' or ''k<sub>2</sub> = 0''
 * Let ''R<sub>⁎,1</sub> = k<sub>1</sub>⋅G, R<sub>⁎,2</sub> = k<sub>2</sub>⋅G''
 * Let ''pubnonce = cbytes(R<sub>⁎,1</sub>) || cbytes(R<sub>⁎,2</sub>)''
@@ -514,6 +515,10 @@ The reference implementation is for demonstration purposes only and not to be us
 === Modifications to Nonce Generation ===
 
 Implementers must avoid modifying the ''NonceGen'' algorithm without being fully aware of the implications.
+
+One potential pitfall emerges when ''NonceGen'' is altered such that ''k<sub>1</sub>'' and ''k<sub>2</sub>'' are drawn uniformly at random instead of setting them to the output of a ''hash'' function.
+The result is that in some situations, an adversary can forge a signature by influencing the individual tweak of a victim signer after seeing the ''pubnonce'' (see [https://github.com/jonasnick/musig2-tweaking here] for the details).
+
 We provide two modifications that are secure when applied correctly and may be useful in special circumstances, summarized in the following table.
 
 {| class="wikitable" style="margin:auto"
