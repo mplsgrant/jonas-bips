@@ -130,7 +130,7 @@ def sig_agg_vectors():
             # WARNING: An actual implementation should _not_ copy the secnonce.
             # Reusing the secnonce, as we do here for testing purposes, can leak the
             # secret key.
-            secnonce_tmp = bytearray(secnonces[nonce_indices[j]])
+            secnonce_tmp = bytearray(secnonces[nonce_indices[j]][:64] + pubkeys[key_indices[j]])
             psigs[psig_indices[j]] = sign(secnonce_tmp, sk[key_indices[j]], session_ctx)
         sig = partial_sig_agg([psigs[i] for i in psig_indices], session_ctx)
         keygen_ctx = key_agg_and_tweak(vec_pubkeys, vec_tweaks, is_xonly)

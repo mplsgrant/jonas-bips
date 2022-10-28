@@ -286,7 +286,7 @@ def nonce_gen_internal(rand_: bytes, sk: Optional[bytes], pk: PlainPk, aggpk: Op
     assert R_s1 is not None
     assert R_s2 is not None
     pubnonce = cbytes(R_s1) + cbytes(R_s2)
-    secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2))
+    secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2) + pk)
     return secnonce, pubnonce
 
 def nonce_gen(sk: Optional[bytes], pk: PlainPk, aggpk: Optional[XonlyPk], msg: Optional[bytes], extra_in: Optional[bytes]) -> Tuple[bytearray, bytes]:
@@ -352,7 +352,7 @@ def sign(secnonce: bytearray, sk: bytes, session_ctx: SessionContext) -> bytes:
     k_2_ = int_from_bytes(secnonce[32:64])
     # Overwrite the secnonce argument with zeros such that subsequent calls of
     # sign with the same secnonce raise a ValueError.
-    secnonce[:] = bytearray(b'\x00'*64)
+    secnonce[:64] = bytearray(b'\x00'*64)
     if not 0 < k_1_ < n:
         raise ValueError('first secnonce value is out of range.')
     if not 0 < k_2_ < n:
@@ -364,6 +364,9 @@ def sign(secnonce: bytearray, sk: bytes, session_ctx: SessionContext) -> bytes:
         raise ValueError('secret key value is out of range.')
     P = point_mul(G, d_)
     assert P is not None
+    pk = cbytes(P)
+    if not pk == secnonce[64:97]:
+        raise ValueError('Public key does not match nonce_gen argument')
     a = get_session_key_agg_coeff(session_ctx, P)
     g = 1 if has_even_y(Q) else n - 1
     d = g * gacc * d_ % n
@@ -375,7 +378,7 @@ def sign(secnonce: bytearray, sk: bytes, session_ctx: SessionContext) -> bytes:
     assert R_s2 is not None
     pubnonce = cbytes(R_s1) + cbytes(R_s2)
     # Optional correctness check. The result of signing should pass signature verification.
-    assert partial_sig_verify_internal(psig, pubnonce, cbytes(P), session_ctx)
+    assert partial_sig_verify_internal(psig, pubnonce, pk, session_ctx)
     return psig
 
 def det_nonce_hash(sk_: bytes, aggothernonce: bytes, aggpk: bytes, msg: bytes, i: int) -> int:
@@ -406,7 +409,7 @@ def deterministic_sign(sk: bytes, aggothernonce: bytes, pubkeys: List[PlainPk], 
     assert R_s1 is not None
     assert R_s2 is not None
     pubnonce = cbytes(R_s1) + cbytes(R_s2)
-    secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2))
+    secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2) + plain_pk_gen(sk))
     try:
         aggnonce = nonce_agg([pubnonce, aggothernonce])
     except Exception:
