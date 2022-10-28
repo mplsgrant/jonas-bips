@@ -423,7 +423,9 @@ Algorithm ''GetSessionValues(session_ctx)'':
 <div>
 Algorithm ''GetSessionKeyAggCoeff(session_ctx, P)'':
 * Let ''(_, u, pk<sub>1..u</sub>, _, _, _, _) = session_ctx''
-* Return ''KeyAggCoeff(pk<sub>1..u</sub>, cbytes(P))''
+* Let ''pk = cbytes(P)''
+* Fail if ''pk'' not in ''pk<sub>1..u</sub>''
+* Return ''KeyAggCoeff(pk<sub>1..u</sub>, pk)''
 </div>
 
 === Signing ===

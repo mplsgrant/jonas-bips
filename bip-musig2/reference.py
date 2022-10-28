@@ -344,7 +344,10 @@ def get_session_values(session_ctx: SessionContext) -> Tuple[Point, int, int, in
 
 def get_session_key_agg_coeff(session_ctx: SessionContext, P: Point) -> int:
     (_, pubkeys, _, _, _) = session_ctx
-    return key_agg_coeff(pubkeys, PlainPk(cbytes(P)))
+    pk = PlainPk(cbytes(P))
+    if pk not in pubkeys:
+        raise ValueError('The signer\'s pubkey must be included in the list of pubkeys.')
+    return key_agg_coeff(pubkeys, pk)
 
 def sign(secnonce: bytearray, sk: bytes, session_ctx: SessionContext) -> bytes:
     (Q, gacc, _, b, R, e) = get_session_values(session_ctx)
