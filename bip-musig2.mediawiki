@@ -78,7 +78,7 @@ The signers start by exchanging public keys and computing an aggregate public ke
 Whenever they want to sign a message, the basic order of operations to create a multi-signature with the specification is as follows:
 
 '''First broadcast round:'''
-The signers start the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''<ref>We treat the 64-byte ''secnonce'' and 66-byte ''pubnonce'' as grammatically singular even though they are serializations of two scalars and two elliptic curve points, respectively. This treatment may be confusing for readers familiar with the MuSig2 paper. However, serialization is a technical detail that is irrelevant for users of MuSig2 interfaces.</ref>.
+The signers start the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''<ref>We treat the ''secnonce'' and ''pubnonce'' as grammatically singular even though they include serializations of two scalars and two elliptic curve points, respectively. This treatment may be confusing for readers familiar with the MuSig2 paper. However, serialization is a technical detail that is irrelevant for users of MuSig2 interfaces.</ref>.
 Then, the signers broadcast their ''pubnonce'' to each other and run ''NonceAgg'' to compute an aggregate nonce.
 
 '''Second broadcast round:'''
@@ -132,14 +132,14 @@ Since MuSig2 key aggregation would accept the duplicate keys and not error out, 
 In contrast to BIP340 signing, the values ''k<sub>1</sub>'' and ''k<sub>2</sub>'' '''must not be derived deterministically''' from the session parameters because otherwise active attackers can  [https://medium.com/blockstream/musig-dn-schnorr-multisignatures-with-verifiably-deterministic-nonces-27424b5df9d6#e3b6 trick the victim into reusing a nonce].
 
 The optional arguments to ''NonceGen'' enable a defense-in-depth mechanism that may prevent secret key exposure if ''rand' '' is accidentally not drawn uniformly at random.
-If the value ''rand' '' was identical in two ''NonceGen'' invocations, but any optional argument was different, the ''secnonce'' would still be guaranteed be different as well (with overwhelming probability), and thus accidentally using the same ''secnonce'' for ''Sign'' in both sessions would be avoided.
+If the value ''rand' '' was identical in two ''NonceGen'' invocations, but any other argument was different, the ''secnonce'' would still be guaranteed be different as well (with overwhelming probability), and thus accidentally using the same ''secnonce'' for ''Sign'' in both sessions would be avoided.
 Therefore, it is recommended to provide the optional arguments ''sk'', ''aggpk'', and ''m'' if these session parameters are already determined during nonce generation.
 The auxiliary input ''extra_in'' can contain additional contextual data that has a chance of changing between ''NonceGen'' runs,
 e.g., a supposedly unique session id (taken from the application), a session counter wide enough not to repeat in practice, any nonces by other signers (if already known), or the serialization of a data structure containing multiple of the above.
 However, the protection provided by the optional arguments should only be viewed as a last resort.
 In most conceivable scenarios, the assumption that the arguments are different between two executions of ''NonceGen'' is relatively strong, particularly when facing an active attacker.
 
-In some applications, it is beneficial to generate and exchange ''pubnonces'' before the signer's secret key, the final set of signers, or the message to sign is known.
+In some applications, it is beneficial to generate and send a ''pubnonce'' before the other signers, their public keys, or the message to sign is known.
 In this case, only the available arguments are provided to the ''NonceGen'' algorithm.
 After this preprocessing phase, the ''Sign'' algorithm can be run immediately when the message and set of signers is determined.
 This way, the final signature is created quicker and with fewer roundtrips.
@@ -347,9 +347,10 @@ Algorithm ''ApplyTweak(keygen_ctx, tweak, is_xonly_t)'':
 === Nonce Generation ===
 
 <div>
-Algorithm ''NonceGen(sk, aggpk, m, extra_in)'':
+Algorithm ''NonceGen(sk, pk, aggpk, m, extra_in)'':
 * Inputs:
 ** The secret signing key ''sk'': a 32-byte array (optional argument)
+** The plain public key ''pk'': a 33-byte array (see [[#modifications-to-nonce-generation|Modifications to Nonce Generation]] for the reason that this argument is mandatory)
 ** The aggregate x-only public key ''aggpk'': a 32-byte array (optional argument)
 ** The message ''m'': a byte array (optional argument)<ref name="mlen">In theory, the allowed message size is restricted because SHA256 accepts byte strings only up to size of 2^61-1 bytes (and because of the 8-byte length encoding).</ref>
 ** The auxiliary input ''extra_in'': a byte array with ''0 &le; len(extra_in) &le; 2<sup>32</sup>-1'' (optional argument)
@@ -366,11 +367,11 @@ Algorithm ''NonceGen(sk, aggpk, m, extra_in)'':
 ** Let ''m_prefixed = bytes(1, 1) || bytes(8, len(m)) || m''
 * If the optional argument ''extra_in'' is not present:
 ** Let ''extra_in = empty_bytestring''
-* Let ''k<sub>i</sub> = int(hash<sub>MuSig/nonce</sub>(rand || bytes(1, len(aggpk)) || aggpk || m_prefixed || bytes(4, len(extra_in)) || extra_in || bytes(1, i - 1))) mod n'' for ''i = 1,2''
+* Let ''k<sub>i</sub> = int(hash<sub>MuSig/nonce</sub>(rand || bytes(1, len(pk)) || pk || bytes(1, len(aggpk)) || aggpk || m_prefixed || bytes(4, len(extra_in)) || extra_in || bytes(1, i - 1))) mod n'' for ''i = 1,2''
 * Fail if ''k<sub>1</sub> = 0'' or ''k<sub>2</sub> = 0''
 * Let ''R<sub>⁎,1</sub> = k<sub>1</sub>⋅G, R<sub>⁎,2</sub> = k<sub>2</sub>⋅G''
 * Let ''pubnonce = cbytes(R<sub>⁎,1</sub>) || cbytes(R<sub>⁎,2</sub>)''
-* Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>)''
+* Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>) || pk''
 * Return ''(secnonce, pubnonce)''
 </div>
 
@@ -422,7 +423,9 @@ Algorithm ''GetSessionValues(session_ctx)'':
 <div>
 Algorithm ''GetSessionKeyAggCoeff(session_ctx, P)'':
 * Let ''(_, u, pk<sub>1..u</sub>, _, _, _, _) = session_ctx''
-* Return ''KeyAggCoeff(pk<sub>1..u</sub>, cbytes(P))''
+* Let ''pk = cbytes(P)''
+* Fail if ''pk'' not in ''pk<sub>1..u</sub>''
+* Return ''KeyAggCoeff(pk<sub>1..u</sub>, pk)''
 </div>
 
 === Signing ===
@@ -430,7 +433,7 @@ Algorithm ''GetSessionKeyAggCoeff(session_ctx, P)'':
 <div>
 Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * Inputs:
-** The secret nonce ''secnonce'' that has never been used as input to ''Sign'' before: a 64-byte array
+** The secret nonce ''secnonce'' that has never been used as input to ''Sign'' before: a 97-byte array
 ** The secret key ''sk'': a 32-byte array
 ** The ''session_ctx'': a [[#session-context|Session Context]] data structure
 * Let ''(Q, gacc, _, b, R, e) = GetSessionValues(session_ctx)''; fail if that fails
@@ -440,13 +443,15 @@ Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * Let ''d' = int(sk)''
 * Fail if ''d' = 0'' or ''d' &ge; n''
 * Let ''P = d'⋅G''
+* Let ''pk = cbytes(P)''
+* Fail if ''pk &ne; secnonce[64:97]''
 * Let ''a = GetSessionKeyAggCoeff(session_ctx, P)''; fail if that fails
 * Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
 * <div id="Sign negation"></div>Let ''d = g⋅gacc⋅d' mod n'' (See [[negation-of-the-secret-key-when-signing|Negation Of The Secret Key When Signing]])
 * Let ''s = (k<sub>1</sub> + b⋅k<sub>2</sub> + e⋅a⋅d) mod n''
 * Let ''psig = bytes(32, s)''
 * Let ''pubnonce = cbytes(k<sub>1</sub>'⋅G) || cbytes(k<sub>2</sub>'⋅G)''
-* If ''PartialSigVerifyInternal(psig, pubnonce, cbytes(P), session_ctx)'' (see below) returns failure, abort<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended, but can be omitted if the computation cost is prohibitive.</ref>.
+* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, abort<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended, but can be omitted if the computation cost is prohibitive.</ref>.
 * Return partial signature ''psig''
 </div>
 
@@ -514,6 +519,12 @@ The reference implementation is for demonstration purposes only and not to be us
 === Modifications to Nonce Generation ===
 
 Implementers must avoid modifying the ''NonceGen'' algorithm without being fully aware of the implications.
+
+One potential pitfall emerges when ''NonceGen'' is altered so the signer's public key ''pk'' is not part of the returned ''secnonce'' array.
+This specification makes the signer provide ''pk'' at nonce generation time and write ''pk'' into the ''secnonce'' array (and check ''pk'' against ''sk'' in ''Sign'') to ensure that the public key of the signer is determined before sending out the ''pubnonce''.
+If the public key is not determined before sending out the ''pubnonce'', an adversary can forge a signature by influencing the individual tweak of a victim signer after seeing the ''pubnonce'' (see the [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2022-October/021000.html bitcoin-dev mailing list post] and [https://github.com/jonasnick/musig2-tweaking writeup] for the details).
+Thus, implementations must guarantee that the public key of the signer is determined before sending out the ''pubnonce'' if they cannot rule out that the signer's individual key is tweaked (e.g., derived via BIP32) with a tweak known to the adversary (e.g., as in BIP32 unhardened derivation).<ref>The nonce generation algorithm as given in the [https://eprint.iacr.org/2020/1261 MuSig2 paper] does not take ''pk'' as an input (and does not store it in the ''secnonce''). However, the security model considered in the paper does not cover security for signers who tweak their individual keys.</ref>
+
 We provide two modifications that are secure when applied correctly and may be useful in special circumstances, summarized in the following table.
 
 {| class="wikitable" style="margin:auto"
@@ -563,7 +574,10 @@ Algorithm ''DeterministicSign(sk, aggothernonce, pk<sub>1..u</sub>, tweak<sub>1.
 * Fail if ''k<sub>1</sub> = 0'' or ''k<sub>2</sub> = 0''
 * Let ''R<sub>⁎,1</sub> = k<sub>1</sub>⋅G, R<sub>⁎,2</sub> = k<sub>2</sub>⋅G''
 * Let ''pubnonce = cbytes(R<sub>⁎,2</sub>) || cbytes(R<sub>⁎,2</sub>)''
-* Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>)''
+* Let ''d = int(sk)''
+* Fail if ''d = 0'' or ''d &ge; n''
+* Let ''pk = cbytes(d⋅G)''
+* Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>) || pk''
 * Let ''aggnonce = NonceAgg((pubnonce, aggothernonce))''; fail if that fails and blame nonce aggregator for invalid ''aggothernonce''.
 * Let ''session_ctx = (aggnonce, u, pk<sub>1..u</sub>, v, tweak<sub>1..v</sub>, is_xonly_t<sub>1..v</sub>, m)''
 * Return ''(pubnonce, Sign(secnonce, sk, session_ctx))''
@@ -713,8 +727,11 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
-* '''1.0.0''' (2022-10-03): Submit draft BIP to the BIPs repository
-* '''0.8.6''' (2022-09-15): Clarify that implementations do not need to support every features and add a test vector for signing with a tweaked key
+* '''1.0.0-rc.2''' (2022-10-28):
+** Fix vulnerability that can occur in certain unusual scenarios (see [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2022-October/021000.html bitcoin-dev mailing list]: Add mandatory ''pk'' argument to ''NonceGen'', append ''pk'' to ''secnonce'' and check in ''Sign'' that the ''pk'' in ''secnonce'' matches. Update test vectors.
+** Make sure that signer's key is in list of input public keys by adding failure case to ''GetSessionKeyAggCoeff'' and add test vectors.
+* '''1.0.0-rc.1''' (2022-10-03): Submit draft BIP to the BIPs repository
+* '''0.8.6''' (2022-09-15): Clarify that implementations do not need to support every feature and add a test vector for signing with a tweaked key
 * '''0.8.5''' (2022-09-05): Rename some functions to improve clarity.
 * '''0.8.4''' (2022-09-02): Make naming of nonce variants ''R'' in specification and reference code easier to read and more consistent.
 * '''0.8.3''' (2022-09-01): Overwrite ''secnonce'' in ''sign'' reference implementation to help prevent accidental reuse and add test vector for invalid ''secnonce''.
