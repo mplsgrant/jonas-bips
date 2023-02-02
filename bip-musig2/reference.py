@@ -610,6 +610,8 @@ def test_sign_verify_vectors() -> None:
         pubkeys = [X[i] for i in test_case["key_indices"]]
         pubnonces = [pnonce[i] for i in test_case["nonce_indices"]]
         aggnonce = aggnonces[test_case["aggnonce_index"]]
+        # Make sure that pubnonces and aggnonce in the test vector are
+        # consistent
         assert nonce_agg(pubnonces) == aggnonce
         msg = msgs[test_case["msg_index"]]
         signer_index = test_case["signer_index"]
