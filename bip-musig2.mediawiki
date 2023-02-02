@@ -727,6 +727,10 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
+* '''1.0.0-rc.3''' (2023-01-11):
+** Improve ''NonceGen'' test vectors by not using an all-zero hex string as ''rand_'' values. This change addresses potential issues in some implementations that interpret this as a special value indicating uninitialized memory or a broken random number generator and therefore return an error.
+** Fix invalid length of a ''pubnonce'' in the ''PartialSigVerify'' test vectors.
+** Improve ''KeySort'' test vector.
 * '''1.0.0-rc.2''' (2022-10-28):
 ** Fix vulnerability that can occur in certain unusual scenarios (see [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2022-October/021000.html bitcoin-dev mailing list]: Add mandatory ''pk'' argument to ''NonceGen'', append ''pk'' to ''secnonce'' and check in ''Sign'' that the ''pk'' in ''secnonce'' matches. Update test vectors.
 ** Make sure that signer's key is in list of input public keys by adding failure case to ''GetSessionKeyAggCoeff'' and add test vectors.
@@ -741,7 +745,7 @@ The <code>PATCH</code> version is incremented for other changes that are notewor
 * '''0.7.2''' (2022-08-17): Add ''NonceGen'' and ''Sign/PartialSigVerify'' test vectors for messages longer than 32 bytes.
 * '''0.7.1''' (2022-08-10): Extract test vectors into separate JSON file.
 * '''0.7.0''' (2022-07-31): Change ''NonceGen'' such that output when message is not present is different from when message is present but has length 0.
-* '''0.6.0''' (2022-07-31): Allow variable length messages, change order of arguments and serialization of the message in the ''NonceGen'' hash function, and add test vectors
+* '''0.6.0''' (2022-07-31): Allow variable length messages, change serialization of the message in the ''NonceGen'' hash function, and add test vectors
 * '''0.5.2''' (2022-06-26): Fix ''aggpk'' in ''NonceGen'' test vectors.
 * '''0.5.1''' (2022-06-22): Rename "ordinary" tweaking to "plain" tweaking.
 * '''0.5.0''' (2022-06-21): Separate ApplyTweak from KeyAgg and introduce KeyGen Context.
