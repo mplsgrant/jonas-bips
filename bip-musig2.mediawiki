@@ -200,6 +200,8 @@ The tweak mode provided to ''ApplyTweak'' depends on the application:
 Plain tweaking can be used to derive child public keys from an aggregate public key using [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32].
 On the other hand, X-only tweaking is required for Taproot tweaking per [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341].
 A Taproot-tweaked public key commits to a ''script path'', allowing users to create transaction outputs that are spendable either with a MuSig2 multi-signature or by providing inputs that satisfy the script path.
+Script path spends require a control block that contains a parity bit for the tweaked public key.
+The bit can be obtained with ''GetPlainPubkey(keygen_ctx)[0] & 1''.
 
 == Algorithms ==
 
