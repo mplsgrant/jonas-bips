@@ -92,7 +92,7 @@
                 "type": "value",
                 "message": "The signer's pubkey must be included in the list of pubkeys."
             },
-            "comment": "The signers pubkey is not in the list of pubkeys"
+            "comment": "The signers pubkey is not in the list of pubkeys. This test case is optional: it can be skipped by implementations that do not check that the signer's pubkey is included in the list of pubkeys."
         },
         {
             "key_indices": [1, 0, 3],

@@ -447,7 +447,7 @@ Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * Let ''P = d'⋅G''
 * Let ''pk = cbytes(P)''
 * Fail if ''pk &ne; secnonce[64:97]''
-* Let ''a = GetSessionKeyAggCoeff(session_ctx, P)''; fail if that fails
+* Let ''a = GetSessionKeyAggCoeff(session_ctx, P)''; fail if that fails<ref>Failing ''Sign'' when ''GetSessionKeyAggCoeff(session_ctx, P)'' fails is not necessary for unforgeability. It merely indicates to the caller that the scheme is not being used correctly.</ref>
 * Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
 * <div id="Sign negation"></div>Let ''d = g⋅gacc⋅d' mod n'' (See [[negation-of-the-secret-key-when-signing|Negation Of The Secret Key When Signing]])
 * Let ''s = (k<sub>1</sub> + b⋅k<sub>2</sub> + e⋅a⋅d) mod n''
@@ -485,7 +485,7 @@ Internal Algorithm ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)''
 * Let ''Re<sub>⁎</sub>' = R<sub>⁎,1</sub> + b⋅R<sub>⁎,2</sub>''
 * Let effective nonce ''Re<sub>⁎</sub> = Re<sub>⁎</sub>' '' if ''has_even_y(R)'', otherwise let ''Re<sub>⁎</sub> = -Re<sub>⁎</sub>' ''
 * Let ''P = cpoint(pk)''; fail if that fails
-* Let ''a = GetSessionKeyAggCoeff(session_ctx, P)''; fail if that fails
+* Let ''a = GetSessionKeyAggCoeff(session_ctx, P)''<ref>''GetSessionKeyAggCoeff(session_ctx, P)'' cannot fail when called from ''PartialSigVerifyInternal''.</ref>
 * Let ''g = 1'' if ''has_even_y(Q)'', otherwise let ''g = -1 mod n''
 * <div id="SigVerify negation"></div>Let ''g' = g⋅gacc mod n'' (See [[#negation-of-the-public-key-when-partially-verifying|Negation Of The Public Key When Partially Verifying]])
 * Fail if ''s⋅G &ne; Re<sub>⁎</sub> + e⋅a⋅g'⋅P''
