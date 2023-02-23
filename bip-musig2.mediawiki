@@ -38,7 +38,7 @@ As a side effect, the number ''n'' of signers is not limited by any consensus ru
 Moreover, MuSig2 offers a '''higher level of privacy''' than <code>OP_CHECKSIGADD</code>: MuSig2 Taproot outputs are indistinguishable for a blockchain observer from regular, single-signer Taproot outputs even though they are actually controlled by multiple signers. By tweaking an aggregate key, the shared Taproot output can have script spending paths that are hidden unless used.
 
 There are multi-signature schemes other than MuSig2 that are fully compatible with Schnorr signatures.
-The MuSig2 variant in this specification stands out by combining all of the following features:
+The MuSig2 variant in this specification stands out by combining all the following features:
 * '''Simple Key Setup''': Key aggregation is non-interactive and fully compatible with BIP340 public keys.
 * '''Two Communication Rounds''': MuSig2 is faster in practice than previous three-round multi-signature protocols such as [https://eprint.iacr.org/2018/068.pdf MuSig1], particularly when signers are connected through high-latency anonymous links. Moreover, the need for fewer communication rounds simplifies the specification and reduces the probability that implementations and users make security-relevant mistakes.
 * '''Provable security''': MuSig2 has been [https://eprint.iacr.org/2020/1261.pdf proven existentially unforgeable] under the algebraic one-more discrete logarithm (AOMDL) assumption (instead of the discrete logarithm assumption required for single-signer Schnorr signatures). AOMDL is a falsifiable and weaker variant of the well-studied OMDL problem.
@@ -132,7 +132,7 @@ Since MuSig2 key aggregation would accept the duplicate keys and not error out, 
 In contrast to BIP340 signing, the values ''k<sub>1</sub>'' and ''k<sub>2</sub>'' '''must not be derived deterministically''' from the session parameters because otherwise active attackers can  [https://medium.com/blockstream/musig-dn-schnorr-multisignatures-with-verifiably-deterministic-nonces-27424b5df9d6#e3b6 trick the victim into reusing a nonce].
 
 The optional arguments to ''NonceGen'' enable a defense-in-depth mechanism that may prevent secret key exposure if ''rand' '' is accidentally not drawn uniformly at random.
-If the value ''rand' '' was identical in two ''NonceGen'' invocations, but any other argument was different, the ''secnonce'' would still be guaranteed be different as well (with overwhelming probability), and thus accidentally using the same ''secnonce'' for ''Sign'' in both sessions would be avoided.
+If the value ''rand' '' was identical in two ''NonceGen'' invocations, but any other argument was different, the ''secnonce'' would still be guaranteed to be different as well (with overwhelming probability), and thus accidentally using the same ''secnonce'' for ''Sign'' in both sessions would be avoided.
 Therefore, it is recommended to provide the optional arguments ''sk'', ''aggpk'', and ''m'' if these session parameters are already determined during nonce generation.
 The auxiliary input ''extra_in'' can contain additional contextual data that has a chance of changing between ''NonceGen'' runs,
 e.g., a supposedly unique session id (taken from the application), a session counter wide enough not to repeat in practice, any nonces by other signers (if already known), or the serialization of a data structure containing multiple of the above.
@@ -142,7 +142,7 @@ In most conceivable scenarios, the assumption that the arguments are different b
 In some applications, it is beneficial to generate and send a ''pubnonce'' before the other signers, their public keys, or the message to sign is known.
 In this case, only the available arguments are provided to the ''NonceGen'' algorithm.
 After this preprocessing phase, the ''Sign'' algorithm can be run immediately when the message and set of signers is determined.
-This way, the final signature is created quicker and with fewer roundtrips.
+This way, the final signature is created quicker and with fewer round trips.
 However, applications that use this method presumably store the nonces for a longer time and must therefore be even more careful not to reuse them.
 Moreover, this method is not compatible with the defense-in-depth mechanism described in the previous paragraph.
 
@@ -177,7 +177,7 @@ More specifically, a malicious aggregator (whose existence violates the second c
 
 The only purpose of the algorithm ''PartialSigVerify'' is to ensure identifiable aborts, and it is not necessary to use it when identifiable aborts are not desired.
 In particular, partial signatures are ''not'' signatures.
-An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'', but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b this writeup].</ref>.
+An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'', but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b a write up by Adam Gibson].</ref>.
 However, if ''PartialSigVerify'' succeeds for all partial signatures then ''PartialSigAgg'' will return a valid Schnorr signature.<ref>Given a list of public keys, it is an open question whether a valid BIP-340 signature for the aggregate of the public keys is proof of knowledge of the secret keys corresponding to the input list.</ref>
 
 === Tweaking ===
@@ -216,7 +216,7 @@ The following conventions are used, with constants as defined for [https://www.s
 ** The constant ''p'' refers to the field size, ''0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F''.
 ** The constant ''n'' refers to the curve order, ''0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141''.
 * Uppercase variables refer to points on the curve with equation ''y<sup>2</sup> = x<sup>3</sup> + 7'' over the integers modulo ''p''.
-** ''is_infinite(P)'' returns whether or not ''P'' is the point at infinity.
+** ''is_infinite(P)'' returns whether ''P'' is the point at infinity.
 ** ''x(P)'' and ''y(P)'' are integers in the range ''0..p-1'' and refer to the X and Y coordinates of a point ''P'' (assuming it is not infinity).
 ** The constant ''G'' refers to the base point, for which ''x(G) = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798'' and ''y(G) = 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8''.
 ** Addition of points refers to the usual [https://en.wikipedia.org/wiki/Elliptic_curve#The_group_law elliptic curve group operation].
@@ -553,7 +553,7 @@ We provide two modifications that are secure when applied correctly and may be u
 First, on systems where obtaining uniformly random values is much harder than maintaining a global atomic counter, it can be beneficial to modify ''NonceGen''.
 The resulting algorithm ''CounterNonceGen'' does not draw ''rand' '' uniformly at random but instead sets ''rand' '' to the value of an atomic counter that is incremented whenever it is read.
 With this modification, the secret signing key ''sk'' of the signer generating the nonce is '''not''' an optional argument and must be provided to ''NonceGen''.
-The security of the resulting scheme is then depending on the requirement that reading the counter must never yield the same counter value in two ''NonceGen'' invocations with the same ''sk''.
+The security of the resulting scheme then depends on the requirement that reading the counter must never yield the same counter value in two ''NonceGen'' invocations with the same ''sk''.
 
 Second, if there is a unique signer who is supposed to send the ''pubnonce'' last, it is possible to modify nonce generation for this single signer to not require high-quality randomness.
 Such a nonce generation algorithm ''DeterministicSign'' is specified below.
@@ -636,7 +636,7 @@ The signer's goal is to produce a partial signature corresponding to the final r
 For ''1 &le; i &le; v'', we denote the value ''g'' computed in the ''i''-th execution of ''ApplyTweak'' by ''g<sub>i-1</sub>''. Therefore, ''g<sub>i-1</sub>'' is ''-1 mod n'' if and only if ''is_xonly_t<sub>i</sub>'' is true and ''Q<sub>i-1</sub>'' has an odd Y coordinate. In other words, ''g<sub>i-1</sub>'' indicates whether ''Q<sub>i-1</sub>'' needed to be negated to apply an X-only tweak:
     ''f(i-1) = g<sub>i-1</sub>⋅Q<sub>i-1</sub>'' for ''1 &le; i &le; v''.
 
-Furthermore, the ''Sign'' and ''PartialSigVerify'' algorithms set value ''g'' depending on whether ''Q<sub>v</sub>'' needed to be negated to produce the (X-only) final output. For consistency this value ''g'' is is referred to as ''g<sub>v</sub>'' in this section.
+Furthermore, the ''Sign'' and ''PartialSigVerify'' algorithms set value ''g'' depending on whether ''Q<sub>v</sub>'' needed to be negated to produce the (X-only) final output. For consistency, this value ''g'' is referred to as ''g<sub>v</sub>'' in this section.
     ''with_even_y(Q<sub>v</sub>) = g<sub>v</sub>⋅Q<sub>v</sub>''.
 </poem>
 
@@ -766,7 +766,7 @@ The <code>PATCH</code> version is incremented for other changes that are notewor
 * '''0.4.0''' (2022-06-20): Allow the output of NonceAgg to be infinity and add test vectors
 * '''0.3.2''' (2022-06-02): Add a lot of test vectors and improve handling of invalid contributions in reference code.
 * '''0.3.1''' (2022-05-24): Add ''NonceGen'' test vectors
-* '''0.3.0''' (2022-05-24): Hash ''i - 1'' instead of ''i''  in ''NonceGen''
+* '''0.3.0''' (2022-05-24): Hash ''i - 1'' instead of ''i'' in ''NonceGen''
 * '''0.2.0''' (2022-05-19): Change order of arguments in ''NonceGen'' hash function
 * '''0.1.0''' (2022-05-19): Publication of draft BIP on the bitcoin-dev mailing list
 
