@@ -249,6 +249,17 @@ The following conventions are used, with constants as defined for [https://www.s
 
 === Key Generation ===
 
+==== Key Generation of an Individual Signer ====
+
+<div>
+Algorithm ''IndividualPubkey(sk)''<ref>The ''IndividualPubkey'' algorithm matches the key generation procedure traditionally used for ECDSA in Bitcoin</ref>:
+* Inputs:
+** The secret key ''sk'': a 32-byte array, freshly generated uniformly at random
+* Let ''d' = int(sk)''.
+* Fail if ''d' = 0'' or ''d' &ge; n''.
+* Return ''cbytes(d'⋅G)''.
+</div>
+
 ==== KeyGen Context ====
 
 The KeyGen Context is a data structure consisting of the following elements:
@@ -523,7 +534,7 @@ The reference implementation is for demonstration purposes only and not to be us
 Implementers must avoid modifying the ''NonceGen'' algorithm without being fully aware of the implications.
 
 One potential pitfall emerges when ''NonceGen'' is altered so the signer's public key ''pk'' is not part of the returned ''secnonce'' array.
-This specification makes the signer provide ''pk'' at nonce generation time and write ''pk'' into the ''secnonce'' array (and check ''pk'' against ''sk'' in ''Sign'') to ensure that the public key of the signer is determined before sending out the ''pubnonce''.
+This specification makes the signer provide ''pk'' at nonce generation time and write ''pk'' into the ''secnonce'' array (and check ''pk'' against ''IndividualPubkey(sk)'' in ''Sign'') to ensure that the public key of the signer is determined before sending out the ''pubnonce''.
 If the public key is not determined before sending out the ''pubnonce'', an adversary can forge a signature by influencing the individual tweak of a victim signer after seeing the ''pubnonce'' (see the [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2022-October/021000.html bitcoin-dev mailing list post] and [https://github.com/jonasnick/musig2-tweaking writeup] for the details).
 Thus, implementations must guarantee that the public key of the signer is determined before sending out the ''pubnonce'' if they cannot rule out that the signer's individual key is tweaked (e.g., derived via BIP32) with a tweak known to the adversary (e.g., as in BIP32 unhardened derivation).<ref>The nonce generation algorithm as given in the [https://eprint.iacr.org/2020/1261 MuSig2 paper] does not take ''pk'' as an input (and does not store it in the ''secnonce''). However, the security model considered in the paper does not cover security for signers who tweak their individual keys.</ref>
 
@@ -729,10 +740,11 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
-* '''1.0.0-rc.3''' (2023-01-11):
+* '''1.0.0-rc.3''' (2023-02-24):
 ** Improve ''NonceGen'' test vectors by not using an all-zero hex string as ''rand_'' values. This change addresses potential issues in some implementations that interpret this as a special value indicating uninitialized memory or a broken random number generator and therefore return an error.
 ** Fix invalid length of a ''pubnonce'' in the ''PartialSigVerify'' test vectors.
 ** Improve ''KeySort'' test vector.
+** Add explicit ''IndividualPubkey'' algorithm.
 * '''1.0.0-rc.2''' (2022-10-28):
 ** Fix vulnerability that can occur in certain unusual scenarios (see [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2022-October/021000.html bitcoin-dev mailing list]: Add mandatory ''pk'' argument to ''NonceGen'', append ''pk'' to ''secnonce'' and check in ''Sign'' that the ''pk'' in ''secnonce'' matches. Update test vectors.
 ** Make sure that signer's key is in list of input public keys by adding failure case to ''GetSessionKeyAggCoeff'' and add test vectors.

@@ -170,7 +170,7 @@ def cpoint_ext(x: bytes) -> Optional[Point]:
         return cpoint(x)
 
 # Return the plain public key corresponding to a given secret key
-def plain_pk_gen(seckey: bytes) -> PlainPk:
+def individual_pk(seckey: bytes) -> PlainPk:
     d0 = int_from_bytes(seckey)
     if not (1 <= d0 <= n - 1):
         raise ValueError('The secret key must be an integer in the range 1..n-1.')
@@ -412,7 +412,7 @@ def deterministic_sign(sk: bytes, aggothernonce: bytes, pubkeys: List[PlainPk], 
     assert R_s1 is not None
     assert R_s2 is not None
     pubnonce = cbytes(R_s1) + cbytes(R_s2)
-    secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2) + plain_pk_gen(sk))
+    secnonce = bytearray(bytes_from_int(k_1) + bytes_from_int(k_2) + individual_pk(sk))
     try:
         aggnonce = nonce_agg([pubnonce, aggothernonce])
     except Exception:
@@ -583,7 +583,7 @@ def test_sign_verify_vectors() -> None:
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == plain_pk_gen(sk)
+    assert X[0] == individual_pk(sk)
 
     secnonces = fromhex_all(test_data["secnonces"])
     pnonce = fromhex_all(test_data["pnonces"])
@@ -663,7 +663,7 @@ def test_tweak_vectors() -> None:
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == plain_pk_gen(sk)
+    assert X[0] == individual_pk(sk)
 
     secnonce = bytearray(bytes.fromhex(test_data["secnonce"]))
     pnonce = fromhex_all(test_data["pnonces"])
@@ -720,7 +720,7 @@ def test_det_sign_vectors() -> None:
     sk = bytes.fromhex(test_data["sk"])
     X = fromhex_all(test_data["pubkeys"])
     # The public key corresponding to sk is at index 0
-    assert X[0] == plain_pk_gen(sk)
+    assert X[0] == individual_pk(sk)
 
     msgs = fromhex_all(test_data["msgs"])
 
@@ -813,8 +813,8 @@ def test_sign_and_verify_random(iters: int) -> None:
     for i in range(iters):
         sk_1 = secrets.token_bytes(32)
         sk_2 = secrets.token_bytes(32)
-        pk_1 = plain_pk_gen(sk_1)
-        pk_2 = plain_pk_gen(sk_2)
+        pk_1 = individual_pk(sk_1)
+        pk_2 = individual_pk(sk_2)
         pubkeys = [pk_1, pk_2]
 
         # In this example, the message and aggregate pubkey are known
