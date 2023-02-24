@@ -14,7 +14,7 @@
 
 === Abstract ===
 
-This document proposes a standard for the [https://eprint.iacr.org/2020/1261.pdf MuSig2] protocol.
+This document proposes a standard for the [https://eprint.iacr.org/2020/1261.pdf MuSig2] multi-signature scheme.
 The standard is compatible with [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340] public keys and signatures.
 It supports ''tweaking'', which allows deriving [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32] child keys from aggregate keys and creating [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] Taproot outputs with key and script paths.
 
@@ -40,18 +40,18 @@ Moreover, MuSig2 offers a '''higher level of privacy''' than <code>OP_CHECKSIGAD
 There are multi-signature schemes other than MuSig2 that are fully compatible with Schnorr signatures.
 The MuSig2 variant proposed below stands out by combining all the following features:
 * '''Simple Key Setup''': Key aggregation is non-interactive and fully compatible with BIP340 public keys.
-* '''Two Communication Rounds''': MuSig2 is faster in practice than previous three-round multi-signature protocols such as [https://eprint.iacr.org/2018/068.pdf MuSig1], particularly when signers are connected through high-latency anonymous links. Moreover, the need for fewer communication rounds simplifies the algorithms and reduces the probability that implementations and users make security-relevant mistakes.
+* '''Two Communication Rounds''': MuSig2 is faster in practice than previous three-round multi-signature schemes such as [https://eprint.iacr.org/2018/068.pdf MuSig1], particularly when signers are connected through high-latency anonymous links. Moreover, the need for fewer communication rounds simplifies the algorithms and reduces the probability that implementations and users make security-relevant mistakes.
 * '''Provable security''': MuSig2 has been [https://eprint.iacr.org/2020/1261.pdf proven existentially unforgeable] under the algebraic one-more discrete logarithm (AOMDL) assumption (instead of the discrete logarithm assumption required for single-signer Schnorr signatures). AOMDL is a falsifiable and weaker variant of the well-studied OMDL problem.
 * '''Low complexity''': MuSig2 has a substantially lower computational and implementation complexity than alternative schemes like [https://eprint.iacr.org/2020/1057 MuSig-DN]. However, this comes at the cost of having no ability to generate nonces deterministically and the requirement to securely handle signing state.
 
 === Design ===
 
-* '''Compatibility with BIP340''': In this proposal, the aggregate public key is a BIP340 X-only public key, and the signature output at the end of the protocol is a BIP340 signature that passes BIP340 verification for the aggregate key and a message. The public keys that are input to the key aggregation algorithm are ''plain'' public keys in compressed format.
+* '''Compatibility with BIP340''': In this proposal, the aggregate public key is a BIP340 X-only public key, and the signature output at the end of the signing protocol is a BIP340 signature that passes BIP340 verification for the aggregate key and a message. The public keys that are input to the key aggregation algorithm are ''plain'' public keys in compressed format.
 * '''Tweaking for BIP32 derivations and Taproot''': This proposal supports tweaking aggregate public keys and signing for tweaked aggregate public keys. We distinguish two modes of tweaking: ''Plain'' tweaking can be used to derive child aggregate public keys per [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32]. ''X-only'' tweaking, on the other hand, allows creating a [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] tweak to add script paths to a Taproot output. See section [[#tweaking|Tweaking]] below for details.
 * '''Non-interactive signing with preprocessing''': The first communication round, exchanging the nonces, can happen before the message or the exact set of signers is determined. Once the parameters of the signing session are finalized, the signers can send partial signatures without additional interaction.
 * '''Key aggregation optionally independent of order''': The output of the key aggregation algorithm depends on the order of the input public keys. Key aggregation does not sort the public keys by default because applications often already have a canonical order of signers. Nonetheless, applications can mandate sorting before aggregation<ref>Applications that sort input public keys before aggregation should ensure that the implementation of sorting is reasonably efficient, and in particular does not degenerate to quadratic runtime on pathological inputs.</ref>, and this proposal specifies a canonical order to sort the public keys before key aggregation. Sorting will ensure the same output, independent of the initial order.
 * '''Third-party nonce and partial signature aggregation''': Instead of every signer sending their nonce and partial signature to every other signer, it is possible to use an untrusted third-party ''aggregator'' in order to reduce the communication complexity from quadratic to linear in the number of signers. In each of the two rounds, the aggregator collects all signers' contributions (nonces or partial signatures), aggregates them, and broadcasts the aggregate back to the signers. A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme.
-* '''Partial signature verification''': If any signer sends a partial signature contribution that was not created by honestly following the protocol, the signing session will fail to produce a valid Schnorr signature. This proposal specifies a partial signature verification algorithm to identify disruptive signers. It is incompatible with third-party nonce aggregation because the individual nonce is required for partial verification.
+* '''Partial signature verification''': If any signer sends a partial signature contribution that was not created by honestly following the signing protocol, the signing session will fail to produce a valid Schnorr signature. This proposal specifies a partial signature verification algorithm to identify disruptive signers. It is incompatible with third-party nonce aggregation because the individual nonce is required for partial verification.
 * '''MuSig2* optimization''': This proposal uses an optimization that allows saving a point multiplication in key aggregation. The MuSig2 scheme with this optimization is called MuSig2* and proven secure in the appendix of the [https://eprint.iacr.org/2020/1261 MuSig2 paper]. The optimization is that the second distinct key in the list of public keys given to the key aggregation algorithm (as well as any keys identical to this key) gets the constant key aggregation coefficient ''1''.
 * '''Parameterization of MuSig2 and security''': In this proposal, each signer's nonce consists of two elliptic curve points. The [https://eprint.iacr.org/2020/1261 MuSig2 paper] gives distinct security proofs depending on the number of points that constitute a nonce. See section [[#choosing-the-size-of-the-nonce|Choosing the Size of the Nonce]] for a discussion.
 
@@ -190,7 +190,7 @@ In addition to public keys, the ''KeyAgg'' algorithm accepts tweaks, which modif
 For example, if ''KeyAgg'' is run with ''v = 2'', ''is_xonly_t<sub>1</sub> = false'', ''is_xonly_t<sub>2</sub> = true'', then the aggregate key is first plain tweaked with ''tweak<sub>1</sub>'' and then X-only tweaked with ''tweak<sub>2</sub>''.
 
 The purpose of specifying tweaking is to ensure compatibility with existing uses of tweaking, i.e., that the result of signing is a valid signature for the tweaked public key.
-The MuSig2 algorithms take arbitrary tweaks as input but accepting arbitrary tweaks may negatively affect the protocol's security.<ref>It is an open question whether allowing arbitrary tweaks from an adversary affects the unforgeability of MuSig2.</ref>
+The MuSig2 algorithms take arbitrary tweaks as input but accepting arbitrary tweaks may negatively affect the security of the scheme.<ref>It is an open question whether allowing arbitrary tweaks from an adversary affects the unforgeability of MuSig2.</ref>
 Instead, signers should obtain the tweaks according to other specifications.
 This typically involves deriving the tweaks from a hash of the aggregate public key and some other information.
 Depending on the specific scheme that is used for tweaking, either the plain or the X-only aggregate public key is required.
@@ -618,7 +618,7 @@ Algorithm ''ApplyXonlyTweak(P, t)'':
 In order to produce a partial signature for an X-only public key that is an aggregate of ''u'' plain public keys and tweaked ''v'' times (X-only or plain), the ''[[#Sign negation|Sign]]'' algorithm may need to negate the secret key during the signing process.
 
 <poem>
-The following elliptic curve points arise as intermediate steps in the MuSig2 protocol:
+The following elliptic curve points arise as intermediate steps when creating a signature:
 • ''P<sub>i</sub>'' as computed in ''KeyAgg'' is the point corresponding to the ''i''-th signer's plain public key. Defining ''d<sub>i</sub>' '' to be the ''i''-th signer's secret key as an integer, i.e., the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
     ''P<sub>i</sub> = d<sub>i</sub>'⋅G ''.
 • ''Q<sub>0</sub>'' is the aggregate of the signers' public keys. It is identical to value ''Q'' computed in ''KeyAgg'' and therefore defined as
@@ -715,21 +715,21 @@ For any other ''aggnonce' '', the reduction sets ''aggnonce = aggnonce' ''.
 
 === Choosing the Size of the Nonce ===
 
-The [https://eprint.iacr.org/2020/1261 MuSig2 paper] contains two security proofs that apply to different protocol variants.
-The first proof relies on the random oracle model (ROM) and applies to a protocol variant where each signer's nonce consists of four elliptic curve points.
+The [https://eprint.iacr.org/2020/1261 MuSig2 paper] contains two security proofs that apply to different variants of the scheme.
+The first proof relies on the random oracle model (ROM) and applies to a scheme variant where each signer's nonce consists of four elliptic curve points.
 The second proof requires a stronger model, namely the combination of the ROM and the algebraic group model (AGM),
-and applies to an optimized protocol variant where the signers' nonces consist of only two points.
-This proposal uses the latter, optimized protocol variant.
+and applies to an optimized scheme variant where the signers' nonces consist of only two points.
+This proposal uses the latter, optimized scheme variant.
 Relying on the stronger model is a legitimate choice for the following reasons:
 
 First, an approach widely taken is interpreting a Forking Lemma proof in the ROM merely as design justification and ignoring the loss of security due to the Forking Lemma.
 If one believes in this approach, then the ROM may not be the optimal model in the first place because some parts of the concrete security bound are arbitrarily ignored.
 One may just as well move to the ROM+AGM model, which produces bounds close to the best-known attacks, e.g., for Schnorr signatures.
 
-Second, as of this writing, there is no instance of a serious protocol with a security proof in the AGM that is not secure in practice.
+Second, as of this writing, there is no instance of a serious cryptographic scheme with a security proof in the AGM that is not secure in practice.
 There are, however, insecure toy schemes with AGM security proofs, but those explicitly violate the requirements of the AGM.
 [https://eprint.iacr.org/2022/226.pdf Broken AGM proofs of toy schemes] provide group elements to the adversary without declaring them as group element inputs.
-In contrast, in MuSig2, all group elements that arise in the protocol are known to the adversary and declared as group element inputs.
+In contrast, in MuSig2, all group elements that arise in the scheme are known to the adversary and declared as group element inputs.
 A scheme very similar to MuSig2 and with two-point nonces was independently proven secure in the ROM and AGM by [https://eprint.iacr.org/2020/1245 Alper and Burdges].
 
 == Change Log ==
