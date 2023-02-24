@@ -49,7 +49,7 @@ The MuSig2 variant proposed below stands out by combining all the following feat
 * '''Compatibility with BIP340''': In this proposal, the aggregate public key is a BIP340 X-only public key, and the signature output at the end of the signing protocol is a BIP340 signature that passes BIP340 verification for the aggregate key and a message. The public keys that are input to the key aggregation algorithm are ''plain'' public keys in compressed format.
 * '''Tweaking for BIP32 derivations and Taproot''': This proposal supports tweaking aggregate public keys and signing for tweaked aggregate public keys. We distinguish two modes of tweaking: ''Plain'' tweaking can be used to derive child aggregate public keys per [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32]. ''X-only'' tweaking, on the other hand, allows creating a [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] tweak to add script paths to a Taproot output. See section [[#tweaking|Tweaking]] below for details.
 * '''Non-interactive signing with preprocessing''': The first communication round, exchanging the nonces, can happen before the message or the exact set of signers is determined. Once the parameters of the signing session are finalized, the signers can send partial signatures without additional interaction.
-* '''Key aggregation optionally independent of order''': The output of the key aggregation algorithm depends on the order of the input public keys. Key aggregation does not sort the public keys by default because applications often already have a canonical order of signers. Nonetheless, applications can mandate sorting before aggregation<ref>Applications that sort input public keys before aggregation should ensure that the implementation of sorting is reasonably efficient, and in particular does not degenerate to quadratic runtime on pathological inputs.</ref>, and this proposal specifies a canonical order to sort the public keys before key aggregation. Sorting will ensure the same output, independent of the initial order.
+* '''Key aggregation optionally independent of order''': The output of the key aggregation algorithm depends on the order of the input public keys. Key aggregation does not sort the public keys by default because applications often already have a canonical order of signers. Nonetheless, applications can mandate sorting before aggregation,<ref>Applications that sort input public keys before aggregation should ensure that the implementation of sorting is reasonably efficient, and in particular does not degenerate to quadratic runtime on pathological inputs.</ref> and this proposal specifies a canonical order to sort the public keys before key aggregation. Sorting will ensure the same output, independent of the initial order.
 * '''Third-party nonce and partial signature aggregation''': Instead of every signer sending their nonce and partial signature to every other signer, it is possible to use an untrusted third-party ''aggregator'' in order to reduce the communication complexity from quadratic to linear in the number of signers. In each of the two rounds, the aggregator collects all signers' contributions (nonces or partial signatures), aggregates them, and broadcasts the aggregate back to the signers. A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme.
 * '''Partial signature verification''': If any signer sends a partial signature contribution that was not created by honestly following the signing protocol, the signing session will fail to produce a valid Schnorr signature. This proposal specifies a partial signature verification algorithm to identify disruptive signers. It is incompatible with third-party nonce aggregation because the individual nonce is required for partial verification.
 * '''MuSig2* optimization''': This proposal uses an optimized scheme MuSig2*, which allows saving a point multiplication in key aggregation as compared to MuSig2. MuSig2* is proven secure in the appendix of the [https://eprint.iacr.org/2020/1261 MuSig2 paper]. The optimization consists of assigning the constant key aggregation coefficient ''1'' to the second distinct key in the list of public keys to be aggregated (as well as to any key identical to this key).
@@ -78,7 +78,7 @@ The signers start by exchanging public keys and computing an aggregate public ke
 Whenever they want to sign a message, the basic order of operations to create a multi-signature is as follows:
 
 '''First broadcast round:'''
-The signers start the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''<ref>We treat the ''secnonce'' and ''pubnonce'' as grammatically singular even though they include serializations of two scalars and two elliptic curve points, respectively. This treatment may be confusing for readers familiar with the MuSig2 paper. However, serialization is a technical detail that is irrelevant for users of MuSig2 interfaces.</ref>.
+The signers start the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''.<ref>We treat the ''secnonce'' and ''pubnonce'' as grammatically singular even though they include serializations of two scalars and two elliptic curve points, respectively. This treatment may be confusing for readers familiar with the MuSig2 paper. However, serialization is a technical detail that is irrelevant for users of MuSig2 interfaces.</ref>
 Then, the signers broadcast their ''pubnonce'' to each other and run ''NonceAgg'' to compute an aggregate nonce.
 
 '''Second broadcast round:'''
@@ -177,7 +177,7 @@ More specifically, a malicious aggregator (whose existence violates the second c
 
 The only purpose of the algorithm ''PartialSigVerify'' is to ensure identifiable aborts, and it is not necessary to use it when identifiable aborts are not desired.
 In particular, partial signatures are ''not'' signatures.
-An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'', but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b a write up by Adam Gibson].</ref>.
+An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key.<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'', but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b a write up by Adam Gibson].</ref>
 However, if ''PartialSigVerify'' succeeds for all partial signatures then ''PartialSigAgg'' will return a valid Schnorr signature.<ref>Given a list of public keys, it is an open question whether a valid BIP-340 signature for the aggregate of the public keys is proof of knowledge of the secret keys corresponding to the input list.</ref>
 
 === Tweaking ===
@@ -252,7 +252,7 @@ The following conventions are used, with constants as defined for [https://www.s
 ==== Key Generation of an Individual Signer ====
 
 <div>
-Algorithm ''IndividualPubkey(sk)''<ref>The ''IndividualPubkey'' algorithm matches the key generation procedure traditionally used for ECDSA in Bitcoin</ref>:
+Algorithm ''IndividualPubkey(sk)'':<ref>The ''IndividualPubkey'' algorithm matches the key generation procedure traditionally used for ECDSA in Bitcoin</ref>
 * Inputs:
 ** The secret key ''sk'': a 32-byte array, freshly generated uniformly at random
 * Let ''d' = int(sk)''.
@@ -369,7 +369,7 @@ Algorithm ''NonceGen(sk, pk, aggpk, m, extra_in)'':
 ** The auxiliary input ''extra_in'': a byte array with ''0 &le; len(extra_in) &le; 2<sup>32</sup>-1'' (optional argument)
 * Let ''rand' '' be a 32-byte array freshly drawn uniformly at random
 * If the optional argument ''sk'' is present:
-** Let ''rand'' be the byte-wise xor of ''sk'' and ''hash<sub>MuSig/aux</sub>(rand')''<ref>The random data is hashed (with a unique tag) as a precaution against situations where the randomness may be correlated with the secret signing key itself. It is xored with the secret key (rather than combined with it in a hash) to reduce the number of operations exposed to the actual secret key.</ref>.
+** Let ''rand'' be the byte-wise xor of ''sk'' and ''hash<sub>MuSig/aux</sub>(rand')''<ref>The random data is hashed (with a unique tag) as a precaution against situations where the randomness may be correlated with the secret signing key itself. It is xored with the secret key (rather than combined with it in a hash) to reduce the number of operations exposed to the actual secret key.</ref>
 * Else:
 ** Let ''rand = rand' ''
 * If the optional argument ''aggpk'' is not present:
@@ -464,7 +464,7 @@ Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * Let ''s = (k<sub>1</sub> + b⋅k<sub>2</sub> + e⋅a⋅d) mod n''
 * Let ''psig = bytes(32, s)''
 * Let ''pubnonce = cbytes(k<sub>1</sub>'⋅G) || cbytes(k<sub>2</sub>'⋅G)''
-* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, abort<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended, but can be omitted if the computation cost is prohibitive.</ref>.
+* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, abort<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended, but can be omitted if the computation cost is prohibitive.</ref>
 * Return partial signature ''psig''
 </div>
 
