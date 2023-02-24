@@ -87,7 +87,7 @@ Every signer computes a partial signature by running ''Sign'' with the secret si
 Then, the signers broadcast their partial signatures to each other and run ''PartialSigAgg'' to obtain the final signature.
 If all signers behaved honestly, the result passes [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340] verification.
 
-Both broadcast rounds can be optimized by using an aggregator who collects all signers' nonces or partial signatures, aggregates them using ''NonceAgg'' or ''PartialSigAgg'', respectively, and broadcasts the aggregated result back to the signers. A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme, i.e., even a malicious aggregator colluding with all but one signer cannot forge a signature.
+Both broadcast rounds can be optimized by using an aggregator who collects all signers' nonces or partial signatures, aggregates them using ''NonceAgg'' or ''PartialSigAgg'', respectively, and broadcasts the aggregate result back to the signers. A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme, i.e., even a malicious aggregator colluding with all but one signer cannot forge a signature.
 
 '''IMPORTANT''': The ''Sign'' algorithm must '''not''' be executed twice with the same ''secnonce''.
 Otherwise, it is possible to extract the secret signing key from the two partial signatures output by the two executions of ''Sign''.
@@ -541,7 +541,7 @@ Thus, implementations must guarantee that the public key of the signer is determ
 We provide two modifications that are secure when applied correctly and may be useful in special circumstances, summarized in the following table.
 
 {| class="wikitable" style="margin:auto"
-!                   !! needs secure randomness !! needs secure counter !! needs to keep state securely !! needs aggregated nonce of all other signers (only possible for one signer)
+!                   !! needs secure randomness !! needs secure counter !! needs to keep state securely !! needs aggregate nonce of all other signers (only possible for one signer)
 |-
 ! NonceGen          || ✓      || &nbsp; || ✓      || &nbsp;
 |-
