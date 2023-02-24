@@ -619,7 +619,7 @@ In order to produce a partial signature for an X-only public key that is an aggr
 
 <poem>
 The following elliptic curve points arise as intermediate steps in the MuSig2 protocol:
-• ''P<sub>i</sub>'' as computed in ''KeyAgg'' is the point corresponding to the ''i''-th signer's plain public key. Defining ''d<sub>i</sub>' '' to be the ''i''-th signer's secret key as an integer, i.e. the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
+• ''P<sub>i</sub>'' as computed in ''KeyAgg'' is the point corresponding to the ''i''-th signer's plain public key. Defining ''d<sub>i</sub>' '' to be the ''i''-th signer's secret key as an integer, i.e., the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
     ''P<sub>i</sub> = d<sub>i</sub>'⋅G ''.
 • ''Q<sub>0</sub>'' is the aggregate of the signers' public keys. It is identical to value ''Q'' computed in ''KeyAgg'' and therefore defined as
     ''Q<sub>0</sub> = a<sub>1</sub>⋅P<sub>1</sub> + a<sub>2</sub>⋅P<sub>2</sub> + ... + a<sub>u</sub>⋅P<sub>u</sub>''.
@@ -630,7 +630,7 @@ The following elliptic curve points arise as intermediate steps in the MuSig2 pr
 • ''with_even_y(Q<sub>v</sub>)'' is the final result of the key aggregation and tweaking operations. It corresponds to the output of ''GetXonlyPubkey'' applied on the final KeyAgg Context.
 </poem>
 
-The signer's goal is to produce a partial signature corresponding to the final result of key aggregation and tweaking, i.e. the X-only public key ''with_even_y(Q<sub>v</sub>)''.
+The signer's goal is to produce a partial signature corresponding to the final result of key aggregation and tweaking, i.e., the X-only public key ''with_even_y(Q<sub>v</sub>)''.
 
 <poem>
 For ''1 &le; i &le; v'', we denote the value ''g'' computed in the ''i''-th execution of ''ApplyTweak'' by ''g<sub>i-1</sub>''. Therefore, ''g<sub>i-1</sub>'' is ''-1 mod n'' if and only if ''is_xonly_t<sub>i</sub>'' is true and ''Q<sub>i-1</sub>'' has an odd Y coordinate. In other words, ''g<sub>i-1</sub>'' indicates whether ''Q<sub>i-1</sub>'' needed to be negated to apply an X-only tweak:
@@ -734,7 +734,7 @@ A scheme very similar to MuSig2 and with two-point nonces was independently prov
 
 == Change Log ==
 
-To help implementors understand updates to this document, we attach a version number that resembles ''semantic versioning'' (<code>MAJOR.MINOR.PATCH</code>).
+To help implementers understand updates to this document, we attach a version number that resembles ''semantic versioning'' (<code>MAJOR.MINOR.PATCH</code>).
 The <code>MAJOR</code> version is incremented if changes to the BIP are introduced that are incompatible with prior versions.
 An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is for development and does not need to be incremented if backwards incompatible changes are introduced.
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
