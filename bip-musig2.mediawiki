@@ -14,7 +14,7 @@
 
 === Abstract ===
 
-This document proposes a standard for the [https://eprint.iacr.org/2020/1261.pdf MuSig2] protocol.
+This document proposes a standard for the [https://eprint.iacr.org/2020/1261.pdf MuSig2] multi-signature scheme.
 The standard is compatible with [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340] public keys and signatures.
 It supports ''tweaking'', which allows deriving [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32] child keys from aggregate keys and creating [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] Taproot outputs with key and script paths.
 
@@ -38,31 +38,31 @@ As a side effect, the number ''n'' of signers is not limited by any consensus ru
 Moreover, MuSig2 offers a '''higher level of privacy''' than <code>OP_CHECKSIGADD</code>: MuSig2 Taproot outputs are indistinguishable for a blockchain observer from regular, single-signer Taproot outputs even though they are actually controlled by multiple signers. By tweaking an aggregate key, the shared Taproot output can have script spending paths that are hidden unless used.
 
 There are multi-signature schemes other than MuSig2 that are fully compatible with Schnorr signatures.
-The MuSig2 variant in this specification stands out by combining all of the following features:
+The MuSig2 variant proposed below stands out by combining all the following features:
 * '''Simple Key Setup''': Key aggregation is non-interactive and fully compatible with BIP340 public keys.
-* '''Two Communication Rounds''': MuSig2 is faster in practice than previous three-round multi-signature protocols such as [https://eprint.iacr.org/2018/068.pdf MuSig1], particularly when signers are connected through high-latency anonymous links. Moreover, the need for fewer communication rounds simplifies the specification and reduces the probability that implementations and users make security-relevant mistakes.
+* '''Two Communication Rounds''': MuSig2 is faster in practice than previous three-round multi-signature schemes such as [https://eprint.iacr.org/2018/068.pdf MuSig1], particularly when signers are connected through high-latency anonymous links. Moreover, the need for fewer communication rounds simplifies the algorithms and reduces the probability that implementations and users make security-relevant mistakes.
 * '''Provable security''': MuSig2 has been [https://eprint.iacr.org/2020/1261.pdf proven existentially unforgeable] under the algebraic one-more discrete logarithm (AOMDL) assumption (instead of the discrete logarithm assumption required for single-signer Schnorr signatures). AOMDL is a falsifiable and weaker variant of the well-studied OMDL problem.
 * '''Low complexity''': MuSig2 has a substantially lower computational and implementation complexity than alternative schemes like [https://eprint.iacr.org/2020/1057 MuSig-DN]. However, this comes at the cost of having no ability to generate nonces deterministically and the requirement to securely handle signing state.
 
 === Design ===
 
-* '''Compatibility with BIP340''': The aggregate public key created as part of this MuSig2 specification is a BIP340 X-only public key, and the signature output at the end of the protocol is a BIP340 signature that passes BIP340 verification for the aggregate key and a message. The public keys that are input to the key aggregation algorithm are ''plain'' public keys in compressed format.
-* '''Tweaking for BIP32 derivations and Taproot''': The specification supports tweaking aggregate public keys and signing for tweaked aggregate public keys. We distinguish two modes of tweaking: ''Plain'' tweaking can be used to derive child aggregate public keys per [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32]. ''X-only'' tweaking, on the other hand, allows creating a [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] tweak to add script paths to a Taproot output. See section [[#tweaking|Tweaking]] below for details.
+* '''Compatibility with BIP340''': In this proposal, the aggregate public key is a BIP340 X-only public key, and the signature output at the end of the signing protocol is a BIP340 signature that passes BIP340 verification for the aggregate key and a message. The public keys that are input to the key aggregation algorithm are ''plain'' public keys in compressed format.
+* '''Tweaking for BIP32 derivations and Taproot''': This proposal supports tweaking aggregate public keys and signing for tweaked aggregate public keys. We distinguish two modes of tweaking: ''Plain'' tweaking can be used to derive child aggregate public keys per [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32]. ''X-only'' tweaking, on the other hand, allows creating a [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] tweak to add script paths to a Taproot output. See section [[#tweaking|Tweaking]] below for details.
 * '''Non-interactive signing with preprocessing''': The first communication round, exchanging the nonces, can happen before the message or the exact set of signers is determined. Once the parameters of the signing session are finalized, the signers can send partial signatures without additional interaction.
-* '''Key aggregation optionally independent of order''': The output of the key aggregation algorithm depends on the order of the input public keys. The specification defines a function to sort the public keys before key aggregation. This will ensure the same output, independent of the initial order. Key aggregation does not sort the public keys by default because applications often already have a canonical order of signers. Nonetheless, applications using this specification can mandate sorting before aggregation<ref>Applications that sort input public keys before aggregation should ensure that the sort implementation is reasonably efficient, and in particular does not degenerate to quadratic runtime on pathological inputs.</ref>.
+* '''Key aggregation optionally independent of order''': The output of the key aggregation algorithm depends on the order of the input public keys. Key aggregation does not sort the public keys by default because applications often already have a canonical order of signers. Nonetheless, applications can mandate sorting before aggregation,<ref>Applications that sort input public keys before aggregation should ensure that the implementation of sorting is reasonably efficient, and in particular does not degenerate to quadratic runtime on pathological inputs.</ref> and this proposal specifies a canonical order to sort the public keys before key aggregation. Sorting will ensure the same output, independent of the initial order.
 * '''Third-party nonce and partial signature aggregation''': Instead of every signer sending their nonce and partial signature to every other signer, it is possible to use an untrusted third-party ''aggregator'' in order to reduce the communication complexity from quadratic to linear in the number of signers. In each of the two rounds, the aggregator collects all signers' contributions (nonces or partial signatures), aggregates them, and broadcasts the aggregate back to the signers. A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme.
-* '''Partial signature verification''': If any signer sends a partial signature contribution that was not created by honestly following the protocol, the signing session will fail to produce a valid Schnorr signature. This standard specifies a partial signature verification algorithm to identify disruptive signers. It is incompatible with third-party nonce aggregation because the individual nonce is required for partial verification.
-* '''MuSig2* optimization''': The specification uses an optimization that allows saving a point multiplication in key aggregation. The MuSig2 scheme with this optimization is called MuSig2* and proven secure in the appendix of the [https://eprint.iacr.org/2020/1261 MuSig2 paper]. The optimization is that the second distinct key in the list of public keys given to the key aggregation algorithm (as well as any keys identical to this key) gets the constant key aggregation coefficient ''1''.
-* '''Parameterization of MuSig2 and security''': In this specification, each signer's nonce consists of two elliptic curve points. The [https://eprint.iacr.org/2020/1261 MuSig2 paper] gives distinct security proofs depending on the number of points that constitute a nonce. See section [[#choosing-the-size-of-the-nonce|Choosing the Size of the Nonce]] for a discussion.
+* '''Partial signature verification''': If any signer sends a partial signature contribution that was not created by honestly following the signing protocol, the signing session will fail to produce a valid Schnorr signature. This proposal specifies a partial signature verification algorithm to identify disruptive signers. It is incompatible with third-party nonce aggregation because the individual nonce is required for partial verification.
+* '''MuSig2* optimization''': This proposal uses an optimized scheme MuSig2*, which allows saving a point multiplication in key aggregation as compared to MuSig2. MuSig2* is proven secure in the appendix of the [https://eprint.iacr.org/2020/1261 MuSig2 paper]. The optimization consists of assigning the constant key aggregation coefficient ''1'' to the second distinct key in the list of public keys to be aggregated (as well as to any key identical to this key).
+* '''Size of the nonce and security''': In this proposal, each signer's nonce consists of two elliptic curve points. The [https://eprint.iacr.org/2020/1261 MuSig2 paper] gives distinct security proofs depending on the number of points that constitute a nonce. See section [[#choosing-the-size-of-the-nonce|Choosing the Size of the Nonce]] for a discussion.
 
 == Overview ==
 
-Implementers of this specification must make sure to understand this section thoroughly to avoid subtle mistakes that may lead to catastrophic failure.
+Implementers must make sure to understand this section thoroughly to avoid subtle mistakes that may lead to catastrophic failure.
 
 === Optionality of Features ===
 
-The goal of this specification is to support a wide range of possible application scenarios.
-Given a specific application scenario, some features supported by this specification may be unnecessary or not desirable, and implementers can choose not to support them.
+The goal of this proposal is to support a wide range of possible application scenarios.
+Given a specific application scenario, some features may be unnecessary or not desirable, and implementers can choose not to support them.
 Such optional features include:
 * Applying plain tweaks after x-only tweaks.
 * Applying tweaks at all.
@@ -75,26 +75,26 @@ Similarly, the test vectors that exercise the unimplemented features should be r
 === General Signing Flow ===
 
 The signers start by exchanging public keys and computing an aggregate public key using the ''KeyAgg'' algorithm.
-Whenever they want to sign a message, the basic order of operations to create a multi-signature with the specification is as follows:
+Whenever they want to sign a message, the basic order of operations to create a multi-signature is as follows:
 
 '''First broadcast round:'''
-The signers start the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''<ref>We treat the ''secnonce'' and ''pubnonce'' as grammatically singular even though they include serializations of two scalars and two elliptic curve points, respectively. This treatment may be confusing for readers familiar with the MuSig2 paper. However, serialization is a technical detail that is irrelevant for users of MuSig2 interfaces.</ref>.
+The signers start the signing session by running ''NonceGen'' to compute ''secnonce'' and ''pubnonce''.<ref>We treat the ''secnonce'' and ''pubnonce'' as grammatically singular even though they include serializations of two scalars and two elliptic curve points, respectively. This treatment may be confusing for readers familiar with the MuSig2 paper. However, serialization is a technical detail that is irrelevant for users of MuSig2 interfaces.</ref>
 Then, the signers broadcast their ''pubnonce'' to each other and run ''NonceAgg'' to compute an aggregate nonce.
 
 '''Second broadcast round:'''
-At this point, every signer has the required data to sign, which, in the specification, is stored in a data structure called [[#session-context|Session Context]].
+At this point, every signer has the required data to sign, which, in the algorithms specified below, is stored in a data structure called [[#session-context|Session Context]].
 Every signer computes a partial signature by running ''Sign'' with the secret signing key, the ''secnonce'' and the session context.
 Then, the signers broadcast their partial signatures to each other and run ''PartialSigAgg'' to obtain the final signature.
 If all signers behaved honestly, the result passes [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340] verification.
 
-Both broadcast rounds can be optimized by using an aggregator who collects all signers' nonces or partial signatures, aggregates them using ''NonceAgg'' or ''PartialSigAgg'', respectively, and broadcasts the aggregated result back to the signers. A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme, i.e., even a malicious aggregator colluding with all but one signer cannot forge a signature.
+Both broadcast rounds can be optimized by using an aggregator who collects all signers' nonces or partial signatures, aggregates them using ''NonceAgg'' or ''PartialSigAgg'', respectively, and broadcasts the aggregate result back to the signers. A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme, i.e., even a malicious aggregator colluding with all but one signer cannot forge a signature.
 
 '''IMPORTANT''': The ''Sign'' algorithm must '''not''' be executed twice with the same ''secnonce''.
 Otherwise, it is possible to extract the secret signing key from the two partial signatures output by the two executions of ''Sign''.
 To avoid accidental reuse of ''secnonce'', an implementation may securely erase the ''secnonce'' argument by overwriting it with 64 zero bytes after it has been read by ''Sign''.
 A ''secnonce'' consisting of only zero bytes is invalid for ''Sign'' and will cause it to fail.
 
-To simplify the specification, some intermediary values are unnecessarily recomputed from scratch, e.g., when executing ''GetSessionValues'' multiple times.
+To simplify the specification of the algorithms, some intermediary values are unnecessarily recomputed from scratch, e.g., when executing ''GetSessionValues'' multiple times.
 Actual implementations can cache these values.
 As a result, the [[#session-context|Session Context]] may look very different in implementations or may not exist at all.
 However, computation of ''GetSessionValues'' and storage of the result must be protected against modification from an untrusted third party.
@@ -102,8 +102,8 @@ This party would have complete control over the aggregate public key and message
 
 === Public Key Aggregation  ===
 
-This specification distinguishes between ''plain public keys'', the traditional key type used in Bitcoin, and ''x-only public keys''.
-Plain public keys are byte strings of length 33 (often called ''compressed'' format) in this specification.
+We distinguish between ''plain public keys'', the traditional key type used in Bitcoin, and ''x-only public keys''.
+Plain public keys are byte strings of length 33 (often called ''compressed'' format).
 In contrast, X-only public keys are 32-byte strings defined in [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340].
 
 The input of the key aggregation algorithm ''KeyAgg'' (and of ''GetSessionValues'' and ''PartialSigVerify'') are plain public keys.
@@ -115,13 +115,13 @@ The aggregate key produced by ''KeyAgg'' is dependent on the order of the input 
 If the application does not have a canonical order of the signers, the public keys can be sorted with the ''KeySort'' algorithm to ensure that the aggregate key is independent of the order of signers.
 
 The same public key is allowed to occur more than once in the input of ''KeyAgg'' and ''KeySort''.
-This is by design: All algorithms in this specification handle multiple signers who (claim to) have identical public keys properly,
+This is by design: All algorithms in this proposal handle multiple signers who (claim to) have identical public keys properly,
 and applications are not required to check for duplicate public keys.
 In fact, applications are recommended to omit checks for duplicate public keys in order to simplify error handling.
 Moreover, it is often impossible to tell at key aggregation which signer is to blame for the duplicate, i.e., which signer came up with the public key honestly and which disruptive signer copied it.
 In contrast, MuSig2 is designed to identify disruptive signers at signing time (see [[#identifiying-disruptive-signers|Identifiying Disruptive Signers]]).
 
-While this specification is able to deal with duplicate public keys, there are scenarios where applications may choose to abort when encountering duplicate public keys.
+While the algorithms in this proposal are able to handle duplicate public keys, there are scenarios where applications may choose to abort when encountering duplicate public keys.
 For example, we can imagine a scenario where a single entity creates a MuSig2 setup with multiple signing devices.
 In that case, duplicate public keys may not result from a malicious signing device copying a public key of another signing device but from accidental initialization of two devices with the same seed.
 Since MuSig2 key aggregation would accept the duplicate keys and not error out, which would in turn reduce the security compared to the intended key setup, applications may reject duplicate public keys before passing them to MuSig2 key aggregation and ask the user to investigate.
@@ -132,7 +132,7 @@ Since MuSig2 key aggregation would accept the duplicate keys and not error out, 
 In contrast to BIP340 signing, the values ''k<sub>1</sub>'' and ''k<sub>2</sub>'' '''must not be derived deterministically''' from the session parameters because otherwise active attackers can  [https://medium.com/blockstream/musig-dn-schnorr-multisignatures-with-verifiably-deterministic-nonces-27424b5df9d6#e3b6 trick the victim into reusing a nonce].
 
 The optional arguments to ''NonceGen'' enable a defense-in-depth mechanism that may prevent secret key exposure if ''rand' '' is accidentally not drawn uniformly at random.
-If the value ''rand' '' was identical in two ''NonceGen'' invocations, but any other argument was different, the ''secnonce'' would still be guaranteed be different as well (with overwhelming probability), and thus accidentally using the same ''secnonce'' for ''Sign'' in both sessions would be avoided.
+If the value ''rand' '' was identical in two ''NonceGen'' invocations, but any other argument was different, the ''secnonce'' would still be guaranteed to be different as well (with overwhelming probability), and thus accidentally using the same ''secnonce'' for ''Sign'' in both sessions would be avoided.
 Therefore, it is recommended to provide the optional arguments ''sk'', ''aggpk'', and ''m'' if these session parameters are already determined during nonce generation.
 The auxiliary input ''extra_in'' can contain additional contextual data that has a chance of changing between ''NonceGen'' runs,
 e.g., a supposedly unique session id (taken from the application), a session counter wide enough not to repeat in practice, any nonces by other signers (if already known), or the serialization of a data structure containing multiple of the above.
@@ -142,7 +142,7 @@ In most conceivable scenarios, the assumption that the arguments are different b
 In some applications, it is beneficial to generate and send a ''pubnonce'' before the other signers, their public keys, or the message to sign is known.
 In this case, only the available arguments are provided to the ''NonceGen'' algorithm.
 After this preprocessing phase, the ''Sign'' algorithm can be run immediately when the message and set of signers is determined.
-This way, the final signature is created quicker and with fewer roundtrips.
+This way, the final signature is created quicker and with fewer round trips.
 However, applications that use this method presumably store the nonces for a longer time and must therefore be even more careful not to reuse them.
 Moreover, this method is not compatible with the defense-in-depth mechanism described in the previous paragraph.
 
@@ -171,13 +171,13 @@ Additionally, if the honest parties agree on the contributions sent by all signe
 
 ==== Further remarks ====
 
-Some of the algorithms in this specification may also assign blame to a malicious aggregator.
+Some of the algorithms specified below may also assign blame to a malicious aggregator.
 While this is possible for some particular misbehavior of the aggregator, it is not guaranteed that a malicious aggregator can be identified.
 More specifically, a malicious aggregator (whose existence violates the second condition above) can always make signing abort and wrongly hold honest signers accountable for the abort (e.g., by claiming to have received an invalid contribution from a particular honest signer).
 
 The only purpose of the algorithm ''PartialSigVerify'' is to ensure identifiable aborts, and it is not necessary to use it when identifiable aborts are not desired.
 In particular, partial signatures are ''not'' signatures.
-An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'', but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b this writeup].</ref>.
+An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key.<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'', but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b a write up by Adam Gibson].</ref>
 However, if ''PartialSigVerify'' succeeds for all partial signatures then ''PartialSigAgg'' will return a valid Schnorr signature.<ref>Given a list of public keys, it is an open question whether a valid BIP-340 signature for the aggregate of the public keys is proof of knowledge of the secret keys corresponding to the input list.</ref>
 
 === Tweaking ===
@@ -190,7 +190,7 @@ In addition to public keys, the ''KeyAgg'' algorithm accepts tweaks, which modif
 For example, if ''KeyAgg'' is run with ''v = 2'', ''is_xonly_t<sub>1</sub> = false'', ''is_xonly_t<sub>2</sub> = true'', then the aggregate key is first plain tweaked with ''tweak<sub>1</sub>'' and then X-only tweaked with ''tweak<sub>2</sub>''.
 
 The purpose of specifying tweaking is to ensure compatibility with existing uses of tweaking, i.e., that the result of signing is a valid signature for the tweaked public key.
-The MuSig2 algorithms take arbitrary tweaks as input but accepting arbitrary tweaks may negatively affect the protocol's security.<ref>It is an open question whether allowing arbitrary tweaks from an adversary affects the unforgeability of MuSig2.</ref>
+The MuSig2 algorithms take arbitrary tweaks as input but accepting arbitrary tweaks may negatively affect the security of the scheme.<ref>It is an open question whether allowing arbitrary tweaks from an adversary affects the unforgeability of MuSig2.</ref>
 Instead, signers should obtain the tweaks according to other specifications.
 This typically involves deriving the tweaks from a hash of the aggregate public key and some other information.
 Depending on the specific scheme that is used for tweaking, either the plain or the X-only aggregate public key is required.
@@ -205,18 +205,18 @@ The bit can be obtained with ''GetPlainPubkey(keygen_ctx)[0] & 1''.
 
 == Algorithms ==
 
-This specification is written with a focus on clarity.
+The following specification of the algorithms has been written with a focus on clarity.
 As a result, the specified algorithms are not always optimal in terms of computation and space.
 In particular, some values are recomputed but can be cached in actual implementations (see [[#signing-flow|Signing Flow]]).
 
 === Notation ===
 
-The following conventions are used, with constants as defined for [https://www.secg.org/sec2-v2.pdf secp256k1]. We note that adapting this specification to other elliptic curves is not straightforward and can result in an insecure scheme.
+The following conventions are used, with constants as defined for [https://www.secg.org/sec2-v2.pdf secp256k1]. We note that adapting this proposal to other elliptic curves is not straightforward and can result in an insecure scheme.
 * Lowercase variables represent integers or byte arrays.
 ** The constant ''p'' refers to the field size, ''0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F''.
 ** The constant ''n'' refers to the curve order, ''0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141''.
 * Uppercase variables refer to points on the curve with equation ''y<sup>2</sup> = x<sup>3</sup> + 7'' over the integers modulo ''p''.
-** ''is_infinite(P)'' returns whether or not ''P'' is the point at infinity.
+** ''is_infinite(P)'' returns whether ''P'' is the point at infinity.
 ** ''x(P)'' and ''y(P)'' are integers in the range ''0..p-1'' and refer to the X and Y coordinates of a point ''P'' (assuming it is not infinity).
 ** The constant ''G'' refers to the base point, for which ''x(G) = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798'' and ''y(G) = 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8''.
 ** Addition of points refers to the usual [https://en.wikipedia.org/wiki/Elliptic_curve#The_group_law elliptic curve group operation].
@@ -252,7 +252,7 @@ The following conventions are used, with constants as defined for [https://www.s
 ==== Key Generation of an Individual Signer ====
 
 <div>
-Algorithm ''IndividualPubkey(sk)''<ref>The ''IndividualPubkey'' algorithm matches the key generation procedure traditionally used for ECDSA in Bitcoin</ref>:
+Algorithm ''IndividualPubkey(sk)'':<ref>The ''IndividualPubkey'' algorithm matches the key generation procedure traditionally used for ECDSA in Bitcoin</ref>
 * Inputs:
 ** The secret key ''sk'': a 32-byte array, freshly generated uniformly at random
 * Let ''d' = int(sk)''.
@@ -369,7 +369,7 @@ Algorithm ''NonceGen(sk, pk, aggpk, m, extra_in)'':
 ** The auxiliary input ''extra_in'': a byte array with ''0 &le; len(extra_in) &le; 2<sup>32</sup>-1'' (optional argument)
 * Let ''rand' '' be a 32-byte array freshly drawn uniformly at random
 * If the optional argument ''sk'' is present:
-** Let ''rand'' be the byte-wise xor of ''sk'' and ''hash<sub>MuSig/aux</sub>(rand')''<ref>The random data is hashed (with a unique tag) as a precaution against situations where the randomness may be correlated with the secret signing key itself. It is xored with the secret key (rather than combined with it in a hash) to reduce the number of operations exposed to the actual secret key.</ref>.
+** Let ''rand'' be the byte-wise xor of ''sk'' and ''hash<sub>MuSig/aux</sub>(rand')''<ref>The random data is hashed (with a unique tag) as a precaution against situations where the randomness may be correlated with the secret signing key itself. It is xored with the secret key (rather than combined with it in a hash) to reduce the number of operations exposed to the actual secret key.</ref>
 * Else:
 ** Let ''rand = rand' ''
 * If the optional argument ''aggpk'' is not present:
@@ -464,7 +464,7 @@ Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * Let ''s = (k<sub>1</sub> + b⋅k<sub>2</sub> + e⋅a⋅d) mod n''
 * Let ''psig = bytes(32, s)''
 * Let ''pubnonce = cbytes(k<sub>1</sub>'⋅G) || cbytes(k<sub>2</sub>'⋅G)''
-* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, abort<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended, but can be omitted if the computation cost is prohibitive.</ref>.
+* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, fail<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended, but can be omitted if the computation cost is prohibitive.</ref>
 * Return partial signature ''psig''
 </div>
 
@@ -534,14 +534,14 @@ The reference implementation is for demonstration purposes only and not to be us
 Implementers must avoid modifying the ''NonceGen'' algorithm without being fully aware of the implications.
 
 One potential pitfall emerges when ''NonceGen'' is altered so the signer's public key ''pk'' is not part of the returned ''secnonce'' array.
-This specification makes the signer provide ''pk'' at nonce generation time and write ''pk'' into the ''secnonce'' array (and check ''pk'' against ''IndividualPubkey(sk)'' in ''Sign'') to ensure that the public key of the signer is determined before sending out the ''pubnonce''.
+We make the signer provide ''pk'' at nonce generation time and write ''pk'' into the ''secnonce'' array (and check ''pk'' against ''IndividualPubkey(sk)'' in ''Sign'') to ensure that the public key of the signer is determined before sending out the ''pubnonce''.
 If the public key is not determined before sending out the ''pubnonce'', an adversary can forge a signature by influencing the individual tweak of a victim signer after seeing the ''pubnonce'' (see the [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2022-October/021000.html bitcoin-dev mailing list post] and [https://github.com/jonasnick/musig2-tweaking writeup] for the details).
 Thus, implementations must guarantee that the public key of the signer is determined before sending out the ''pubnonce'' if they cannot rule out that the signer's individual key is tweaked (e.g., derived via BIP32) with a tweak known to the adversary (e.g., as in BIP32 unhardened derivation).<ref>The nonce generation algorithm as given in the [https://eprint.iacr.org/2020/1261 MuSig2 paper] does not take ''pk'' as an input (and does not store it in the ''secnonce''). However, the security model considered in the paper does not cover security for signers who tweak their individual keys.</ref>
 
 We provide two modifications that are secure when applied correctly and may be useful in special circumstances, summarized in the following table.
 
 {| class="wikitable" style="margin:auto"
-!                   !! needs secure randomness !! needs secure counter !! needs to keep state securely !! needs aggregated nonce of all other signers (only possible for one signer)
+!                   !! needs secure randomness !! needs secure counter !! needs to keep state securely !! needs aggregate nonce of all other signers (only possible for one signer)
 |-
 ! NonceGen          || ✓      || &nbsp; || ✓      || &nbsp;
 |-
@@ -553,7 +553,7 @@ We provide two modifications that are secure when applied correctly and may be u
 First, on systems where obtaining uniformly random values is much harder than maintaining a global atomic counter, it can be beneficial to modify ''NonceGen''.
 The resulting algorithm ''CounterNonceGen'' does not draw ''rand' '' uniformly at random but instead sets ''rand' '' to the value of an atomic counter that is incremented whenever it is read.
 With this modification, the secret signing key ''sk'' of the signer generating the nonce is '''not''' an optional argument and must be provided to ''NonceGen''.
-The security of the resulting scheme is then depending on the requirement that reading the counter must never yield the same counter value in two ''NonceGen'' invocations with the same ''sk''.
+The security of the resulting scheme then depends on the requirement that reading the counter must never yield the same counter value in two ''NonceGen'' invocations with the same ''sk''.
 
 Second, if there is a unique signer who is supposed to send the ''pubnonce'' last, it is possible to modify nonce generation for this single signer to not require high-quality randomness.
 Such a nonce generation algorithm ''DeterministicSign'' is specified below.
@@ -598,7 +598,7 @@ Algorithm ''DeterministicSign(sk, aggothernonce, pk<sub>1..u</sub>, tweak<sub>1.
 
 === Tweaking Definition ===
 
-This MuSig2 specification supports two modes of tweaking that correspond to the following algorithms:
+Two modes of tweaking are supported. They correspond to the following algorithms:
 
 <div>
 Algorithm ''ApplyPlainTweak(P, t)'':
@@ -618,8 +618,8 @@ Algorithm ''ApplyXonlyTweak(P, t)'':
 In order to produce a partial signature for an X-only public key that is an aggregate of ''u'' plain public keys and tweaked ''v'' times (X-only or plain), the ''[[#Sign negation|Sign]]'' algorithm may need to negate the secret key during the signing process.
 
 <poem>
-The following elliptic curve points arise as intermediate steps in the MuSig2 protocol:
-• ''P<sub>i</sub>'' as computed in ''KeyAgg'' is the point corresponding to the ''i''-th signer's plain public key. Defining ''d<sub>i</sub>' '' to be the ''i''-th signer's secret key as an integer, i.e. the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
+The following elliptic curve points arise as intermediate steps when creating a signature:
+• ''P<sub>i</sub>'' as computed in ''KeyAgg'' is the point corresponding to the ''i''-th signer's plain public key. Defining ''d<sub>i</sub>' '' to be the ''i''-th signer's secret key as an integer, i.e., the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
     ''P<sub>i</sub> = d<sub>i</sub>'⋅G ''.
 • ''Q<sub>0</sub>'' is the aggregate of the signers' public keys. It is identical to value ''Q'' computed in ''KeyAgg'' and therefore defined as
     ''Q<sub>0</sub> = a<sub>1</sub>⋅P<sub>1</sub> + a<sub>2</sub>⋅P<sub>2</sub> + ... + a<sub>u</sub>⋅P<sub>u</sub>''.
@@ -630,13 +630,13 @@ The following elliptic curve points arise as intermediate steps in the MuSig2 pr
 • ''with_even_y(Q<sub>v</sub>)'' is the final result of the key aggregation and tweaking operations. It corresponds to the output of ''GetXonlyPubkey'' applied on the final KeyAgg Context.
 </poem>
 
-The signer's goal is to produce a partial signature corresponding to the final result of key aggregation and tweaking, i.e. the X-only public key ''with_even_y(Q<sub>v</sub>)''.
+The signer's goal is to produce a partial signature corresponding to the final result of key aggregation and tweaking, i.e., the X-only public key ''with_even_y(Q<sub>v</sub>)''.
 
 <poem>
 For ''1 &le; i &le; v'', we denote the value ''g'' computed in the ''i''-th execution of ''ApplyTweak'' by ''g<sub>i-1</sub>''. Therefore, ''g<sub>i-1</sub>'' is ''-1 mod n'' if and only if ''is_xonly_t<sub>i</sub>'' is true and ''Q<sub>i-1</sub>'' has an odd Y coordinate. In other words, ''g<sub>i-1</sub>'' indicates whether ''Q<sub>i-1</sub>'' needed to be negated to apply an X-only tweak:
     ''f(i-1) = g<sub>i-1</sub>⋅Q<sub>i-1</sub>'' for ''1 &le; i &le; v''.
 
-Furthermore, the ''Sign'' and ''PartialSigVerify'' algorithms set value ''g'' depending on whether ''Q<sub>v</sub>'' needed to be negated to produce the (X-only) final output. For consistency this value ''g'' is is referred to as ''g<sub>v</sub>'' in this section.
+Furthermore, the ''Sign'' and ''PartialSigVerify'' algorithms set value ''g'' depending on whether ''Q<sub>v</sub>'' needed to be negated to produce the (X-only) final output. For consistency, this value ''g'' is referred to as ''g<sub>v</sub>'' in this section.
     ''with_even_y(Q<sub>v</sub>) = g<sub>v</sub>⋅Q<sub>v</sub>''.
 </poem>
 
@@ -703,7 +703,7 @@ If signing aborted in this case, it would be impossible to determine who is dish
 Therefore, signing continues so that the culprit is revealed when collecting and verifying partial signatures.
 
 However, the final nonce ''R'' of a BIP340 Schnorr signature cannot be the point at infinity.
-If this specification would nonetheless allow the final nonce to be the point at infinity, then the scheme would lose the following property:
+If we would nonetheless allow the final nonce to be the point at infinity, then the scheme would lose the following property:
 if ''PartialSigVerify'' succeeds for all partial signatures, then ''PartialSigAgg'' will return a valid Schnorr signature.
 Since this is a valuable feature, we modify MuSig2* (which is defined in the appendix of the [https://eprint.iacr.org/2020/1261 MuSig2 paper]) to avoid producing an invalid Schnorr signature while still allowing detection of the dishonest signer: In ''GetSessionValues'', if the final nonce ''R'' would be the point at infinity, set it to the generator instead (an arbitrary choice).
 
@@ -715,27 +715,27 @@ For any other ''aggnonce' '', the reduction sets ''aggnonce = aggnonce' ''.
 
 === Choosing the Size of the Nonce ===
 
-The [https://eprint.iacr.org/2020/1261 MuSig2 paper] contains two security proofs that apply to different protocol variants.
-The first proof relies on the random oracle model (ROM) and applies to a protocol variant where each signer's nonce consists of four elliptic curve points.
+The [https://eprint.iacr.org/2020/1261 MuSig2 paper] contains two security proofs that apply to different variants of the scheme.
+The first proof relies on the random oracle model (ROM) and applies to a scheme variant where each signer's nonce consists of four elliptic curve points.
 The second proof requires a stronger model, namely the combination of the ROM and the algebraic group model (AGM),
-and applies to an optimized protocol variant where the signers' nonces consist of only two points.
-This document uses the latter, optimized protocol variant.
+and applies to an optimized scheme variant where the signers' nonces consist of only two points.
+This proposal uses the latter, optimized scheme variant.
 Relying on the stronger model is a legitimate choice for the following reasons:
 
 First, an approach widely taken is interpreting a Forking Lemma proof in the ROM merely as design justification and ignoring the loss of security due to the Forking Lemma.
 If one believes in this approach, then the ROM may not be the optimal model in the first place because some parts of the concrete security bound are arbitrarily ignored.
 One may just as well move to the ROM+AGM model, which produces bounds close to the best-known attacks, e.g., for Schnorr signatures.
 
-Second, as of this writing, there is no instance of a serious protocol with a security proof in the AGM that is not secure in practice.
+Second, as of this writing, there is no instance of a serious cryptographic scheme with a security proof in the AGM that is not secure in practice.
 There are, however, insecure toy schemes with AGM security proofs, but those explicitly violate the requirements of the AGM.
 [https://eprint.iacr.org/2022/226.pdf Broken AGM proofs of toy schemes] provide group elements to the adversary without declaring them as group element inputs.
-In contrast, in MuSig2, all group elements that arise in the protocol are known to the adversary and declared as group element inputs.
+In contrast, in MuSig2, all group elements that arise in the scheme are known to the adversary and declared as group element inputs.
 A scheme very similar to MuSig2 and with two-point nonces was independently proven secure in the ROM and AGM by [https://eprint.iacr.org/2020/1245 Alper and Burdges].
 
 == Change Log ==
 
-To help implementors understand updates to this BIP, we attach a version number that resembles ''semantic versioning'' (<code>MAJOR.MINOR.PATCH</code>).
-The <code>MAJOR</code> version is incremented if changes to the specification are introduced that are incompatible with prior versions.
+To help implementers understand updates to this document, we attach a version number that resembles ''semantic versioning'' (<code>MAJOR.MINOR.PATCH</code>).
+The <code>MAJOR</code> version is incremented if changes to the BIP are introduced that are incompatible with prior versions.
 An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is for development and does not need to be incremented if backwards incompatible changes are introduced.
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
@@ -751,7 +751,7 @@ The <code>PATCH</code> version is incremented for other changes that are notewor
 * '''1.0.0-rc.1''' (2022-10-03): Submit draft BIP to the BIPs repository
 * '''0.8.6''' (2022-09-15): Clarify that implementations do not need to support every feature and add a test vector for signing with a tweaked key
 * '''0.8.5''' (2022-09-05): Rename some functions to improve clarity.
-* '''0.8.4''' (2022-09-02): Make naming of nonce variants ''R'' in specification and reference code easier to read and more consistent.
+* '''0.8.4''' (2022-09-02): Make naming of nonce variants ''R'' in specifications of the algorithms and reference code easier to read and more consistent.
 * '''0.8.3''' (2022-09-01): Overwrite ''secnonce'' in ''sign'' reference implementation to help prevent accidental reuse and add test vector for invalid ''secnonce''.
 * '''0.8.2''' (2022-08-30): Fix ''KeySort'' input length and add test vectors
 * '''0.8.1''' (2022-08-26): Add ''DeterministicSign'' algorithm
@@ -766,7 +766,7 @@ The <code>PATCH</code> version is incremented for other changes that are notewor
 * '''0.4.0''' (2022-06-20): Allow the output of NonceAgg to be infinity and add test vectors
 * '''0.3.2''' (2022-06-02): Add a lot of test vectors and improve handling of invalid contributions in reference code.
 * '''0.3.1''' (2022-05-24): Add ''NonceGen'' test vectors
-* '''0.3.0''' (2022-05-24): Hash ''i - 1'' instead of ''i''  in ''NonceGen''
+* '''0.3.0''' (2022-05-24): Hash ''i - 1'' instead of ''i'' in ''NonceGen''
 * '''0.2.0''' (2022-05-19): Change order of arguments in ''NonceGen'' hash function
 * '''0.1.0''' (2022-05-19): Publication of draft BIP on the bitcoin-dev mailing list
 
