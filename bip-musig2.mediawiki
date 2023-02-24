@@ -464,7 +464,7 @@ Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * Let ''s = (k<sub>1</sub> + b⋅k<sub>2</sub> + e⋅a⋅d) mod n''
 * Let ''psig = bytes(32, s)''
 * Let ''pubnonce = cbytes(k<sub>1</sub>'⋅G) || cbytes(k<sub>2</sub>'⋅G)''
-* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, abort<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended, but can be omitted if the computation cost is prohibitive.</ref>
+* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, fail<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended, but can be omitted if the computation cost is prohibitive.</ref>
 * Return partial signature ''psig''
 </div>
 
