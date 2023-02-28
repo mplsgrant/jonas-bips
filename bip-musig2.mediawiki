@@ -102,14 +102,15 @@ This party would have complete control over the aggregate public key and message
 
 === Public Key Aggregation  ===
 
-We distinguish between ''plain public keys'', the traditional key type used in Bitcoin, and ''x-only public keys''.
+We distinguish between two public key types, namely ''plain public keys'', the key type traditionally used in Bitcoin, and ''X-only public keys''.
 Plain public keys are byte strings of length 33 (often called ''compressed'' format).
 In contrast, X-only public keys are 32-byte strings defined in [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340].
 
-The input of the key aggregation algorithm ''KeyAgg'' (and of ''GetSessionValues'' and ''PartialSigVerify'') are plain public keys.
-The output of ''KeyAgg'' is a [[#keygen-context|KeyGen Context]] which stores information required for tweaking (see [[#tweaking|below]]).
-In order to obtain the (X-only) aggregate public key for BIP340 verification, implementations call the ''GetXonlyPubkey'' function with the KeyGen Context.
-It is also possible to get the plain aggregate public from the KeyGen Context using ''GetPlainPubkey'', which is required for some applications of [[#tweaking|tweaking]].
+The individual public keys of signers as input to the key aggregation algorithm ''KeyAgg'' (and to ''GetSessionValues'' and ''PartialSigVerify'') are plain public keys.
+The output of ''KeyAgg'' is a [[#keygen-context|KeyGen Context]] which stores information required for tweaking the aggregate key (see [[#tweaking|below]]),
+and it can be used to produce an X-only aggregate public key, or a plain aggregate public key.
+In order to obtain an X-only public key compatible with BIP340 verification, implementations call the ''GetXonlyPubkey'' function with the KeyGen Context.
+To get the plain aggregate public key, which is required for some applications of [[#tweaking|tweaking]], implementations call ''GetPlainPubkey'' instead.
 
 The aggregate key produced by ''KeyAgg'' is dependent on the order of the input public keys.
 If the application does not have a canonical order of the signers, the public keys can be sorted with the ''KeySort'' algorithm to ensure that the aggregate key is independent of the order of signers.
@@ -287,7 +288,7 @@ Algorithm ''GetPlainPubkey(keygen_ctx)'':
 Algorithm ''KeySort(pk<sub>1..u</sub>)'':
 * Inputs:
 ** The number ''u'' of public keys with ''0 < u < 2^32''
-** The plain public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
+** The individual public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
 * Return ''pk<sub>1..u</sub>'' sorted in lexicographical order.
 </div>
 
@@ -297,7 +298,7 @@ Algorithm ''KeySort(pk<sub>1..u</sub>)'':
 Algorithm ''KeyAgg(pk<sub>1..u</sub>)'':
 * Inputs:
 ** The number ''u'' of public keys with ''0 < u < 2^32''
-** The plain public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
+** The individual public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
 * Let ''pk2 = GetSecondKey(pk<sub>1..u</sub>)''
 * For ''i = 1 .. u'':
 ** Let ''P<sub>i</sub> = cpoint(pk<sub>i</sub>)''; fail if that fails and blame signer ''i'' for invalid public key.
@@ -363,7 +364,7 @@ Algorithm ''ApplyTweak(keygen_ctx, tweak, is_xonly_t)'':
 Algorithm ''NonceGen(sk, pk, aggpk, m, extra_in)'':
 * Inputs:
 ** The secret signing key ''sk'': a 32-byte array (optional argument)
-** The plain public key ''pk'': a 33-byte array (see [[#modifications-to-nonce-generation|Modifications to Nonce Generation]] for the reason that this argument is mandatory)
+** The individual public key ''pk'': a 33-byte array (see [[#modifications-to-nonce-generation|Modifications to Nonce Generation]] for the reason that this argument is mandatory)
 ** The aggregate x-only public key ''aggpk'': a 32-byte array (optional argument)
 ** The message ''m'': a byte array (optional argument)<ref name="mlen">In theory, the allowed message size is restricted because SHA256 accepts byte strings only up to size of 2^61-1 bytes (and because of the 8-byte length encoding).</ref>
 ** The auxiliary input ''extra_in'': a byte array with ''0 &le; len(extra_in) &le; 2<sup>32</sup>-1'' (optional argument)
@@ -407,7 +408,7 @@ Algorithm ''NonceAgg(pubnonce<sub>1..u</sub>)'':
 The Session Context is a data structure consisting of the following elements:
 * The aggregate public nonce ''aggnonce'': a 66-byte array
 * The number ''u'' of public keys with ''0 < u < 2^32''
-* The plain public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
+* The individual public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
 * The number ''v'' of tweaks with ''0 &le; v < 2^32''
 * The tweaks ''tweak<sub>1..v</sub>'': ''v'' 32-byte arrays
 * The tweak modes ''is_xonly_t<sub>1..v</sub>'' : ''v'' booleans
@@ -476,7 +477,7 @@ Algorithm ''PartialSigVerify(psig, pubnonce<sub>1..u</sub>, pk<sub>1..u</sub>, t
 ** The partial signature ''psig'': a 32-byte array
 ** The number ''u'' of public nonces and public keys with ''0 < u < 2^32''
 ** The public nonces ''pubnonce<sub>1..u</sub>'': ''u'' 66-byte arrays
-** The plain public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
+** The individual public keys ''pk<sub>1..u</sub>'': ''u'' 33-byte arrays
 ** The number ''v'' of tweaks with ''0 &le; v < 2^32''
 ** The tweaks ''tweak<sub>1..v</sub>'': ''v'' 32-byte arrays
 ** The tweak modes ''is_xonly_t<sub>1..v</sub>'' : ''v'' booleans
@@ -559,7 +560,7 @@ then it is not a problem that the attacker can influence this decision after hav
 More formally, consider modified algorithms ''NonceGen' '' and ''Sign' '', where ''NonceGen' '' does not take the individual public key of the signer as input and does not store it in pubnonce, and Sign' does not check read the individual public key from pubnonce and does not check it against the secret key taken as input.
 Then it suffices that for each invocation of ''NonceGen' '' with output ''(secnonce, pubnonce)'',
 a function ''fsk'' is determined before sending out ''pubnonce'',
-where ''fsk'' maps a pair consisting of a list of plain public keys and a message to a secret key,
+where ''fsk'' maps a pair consisting of a list of individual public keys and a message to a secret key,
 such that the secret key ''sk'' and the session context ''session_ctx = (_, _, pk<sub>1..u</sub>, _, _, _, m)''
 provided to the corresponding invocation of ''Sign'(secnonce, sk, session_ctx)'',
 adhere to the condition ''fsk(pk<sub>1..u</sub>, m) = sk''.<br />
@@ -604,7 +605,7 @@ Algorithm ''DeterministicSign(sk, aggothernonce, pk<sub>1..u</sub>, tweak<sub>1.
 ** The secret signing key ''sk'': a 32-byte array
 ** The aggregate public nonce ''aggothernonce'' (see [[#modifications-to-nonce-generation|above]]): a 66-byte array
 ** The number ''u'' of public keys with ''0 < u < 2^32''
-** The plain public keys ''pk<sub>1..u</sub>'': ''u'' 32-byte arrays
+** The individual public keys ''pk<sub>1..u</sub>'': ''u'' 32-byte arrays
 ** The number ''v'' of tweaks with ''0 &le; v < 2^32''
 ** The tweaks ''tweak<sub>1..v</sub>'': ''v'' 32-byte arrays
 ** The tweak methods ''is_xonly_t<sub>1..v</sub>'': ''v'' booleans
@@ -650,11 +651,11 @@ Algorithm ''ApplyXonlyTweak(P, t)'':
 
 === Negation Of The Secret Key When Signing ===
 
-In order to produce a partial signature for an X-only public key that is an aggregate of ''u'' plain public keys and tweaked ''v'' times (X-only or plain), the ''[[#Sign negation|Sign]]'' algorithm may need to negate the secret key during the signing process.
+In order to produce a partial signature for an X-only public key that is an aggregate of ''u'' individual public keys and tweaked ''v'' times (X-only or plain), the ''[[#Sign negation|Sign]]'' algorithm may need to negate the secret key during the signing process.
 
 <poem>
 The following elliptic curve points arise as intermediate steps when creating a signature:
-• ''P<sub>i</sub>'' as computed in ''KeyAgg'' is the point corresponding to the ''i''-th signer's plain public key. Defining ''d<sub>i</sub>' '' to be the ''i''-th signer's secret key as an integer, i.e., the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
+• ''P<sub>i</sub>'' as computed in ''KeyAgg'' is the point corresponding to the ''i''-th signer's individual public key. Defining ''d<sub>i</sub>' '' to be the ''i''-th signer's secret key as an integer, i.e., the ''d' '' value as computed in the ''Sign'' algorithm of the ''i''-th signer, we have
     ''P<sub>i</sub> = d<sub>i</sub>'⋅G ''.
 • ''Q<sub>0</sub>'' is the aggregate of the signers' public keys. It is identical to value ''Q'' computed in ''KeyAgg'' and therefore defined as
     ''Q<sub>0</sub> = a<sub>1</sub>⋅P<sub>1</sub> + a<sub>2</sub>⋅P<sub>2</sub> + ... + a<sub>u</sub>⋅P<sub>u</sub>''.
@@ -724,7 +725,7 @@ The ''[[#SigVerify negation|PartialSigVerifyInternal]]'' algorithm is supposed t
 </poem>
 
 <poem>
-The verifier doesn't have access to ''d⋅G'', but can construct it using the plain public key ''pk'' as follows:
+The verifier doesn't have access to ''d⋅G'', but can construct it using the individual public key ''pk'' as follows:
 ''d⋅G
     = g<sub>v</sub>⋅gacc<sub>v</sub>⋅d'⋅G
     = g<sub>v</sub>⋅gacc<sub>v</sub>⋅cpoint(pk)''
