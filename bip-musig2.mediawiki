@@ -47,7 +47,7 @@ The MuSig2 variant proposed below stands out by combining all the following feat
 === Design ===
 
 * '''Compatibility with BIP340''': In this proposal, the aggregate public key is a BIP340 X-only public key, and the signature output at the end of the signing protocol is a BIP340 signature that passes BIP340 verification for the aggregate public key and a message. The public keys that are input to the key aggregation algorithm are ''plain'' public keys in compressed format.
-* '''Tweaking for BIP32 derivations and Taproot''': This proposal supports tweaking aggregate public keys and signing for tweaked aggregate public keys. We distinguish two modes of tweaking: ''Plain'' tweaking can be used to derive child aggregate public keys per [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32]. ''X-only'' tweaking, on the other hand, allows creating a [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] tweak to add script paths to a Taproot output. See section [[#tweaking|Tweaking]] below for details.
+* '''Tweaking for BIP32 derivations and Taproot''': This proposal supports tweaking aggregate public keys and signing for tweaked aggregate public keys. We distinguish two modes of tweaking: ''Plain'' tweaking can be used to derive child aggregate public keys per [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32]. ''X-only'' tweaking, on the other hand, allows creating a [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] tweak to add script paths to a Taproot output. See [[#tweaking-the-aggregate-public-key|below]] for details.
 * '''Non-interactive signing with preprocessing''': The first communication round, exchanging the nonces, can happen before the message or the exact set of signers is determined. Once the parameters of the signing session are finalized, the signers can send partial signatures without additional interaction.
 * '''Key aggregation optionally independent of order''': The output of the key aggregation algorithm depends on the order of the input public keys. Key aggregation does not sort the public keys by default because applications often already have a canonical order of signers. Nonetheless, applications can mandate sorting before aggregation,<ref>Applications that sort input public keys before aggregation should ensure that the implementation of sorting is reasonably efficient, and in particular does not degenerate to quadratic runtime on pathological inputs.</ref> and this proposal specifies a canonical order to sort the public keys before key aggregation. Sorting will ensure the same output, independent of the initial order.
 * '''Third-party nonce and partial signature aggregation''': Instead of every signer sending their nonce and partial signature to every other signer, it is possible to use an untrusted third-party ''aggregator'' in order to reduce the communication complexity from quadratic to linear in the number of signers. In each of the two rounds, the aggregator collects all signers' contributions (nonces or partial signatures), aggregates them, and broadcasts the aggregate back to the signers. A malicious aggregator can force the signing session to fail to produce a valid Schnorr signature but cannot negatively affect the unforgeability of the scheme.
@@ -107,10 +107,10 @@ Plain public keys are byte strings of length 33 (often called ''compressed'' for
 In contrast, X-only public keys are 32-byte strings defined in [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340].
 
 The individual public keys of signers as input to the key aggregation algorithm ''KeyAgg'' (and to ''GetSessionValues'' and ''PartialSigVerify'') are plain public keys.
-The output of ''KeyAgg'' is a [[#keygen-context|KeyGen Context]] which stores information required for tweaking the aggregate public key (see [[#tweaking|below]]),
+The output of ''KeyAgg'' is a [[#keygen-context|KeyGen Context]] which stores information required for tweaking the aggregate public key (see [[#tweaking-the-aggregate-public-key|below]]),
 and it can be used to produce an X-only aggregate public key, or a plain aggregate public key.
 In order to obtain an X-only public key compatible with BIP340 verification, implementations call the ''GetXonlyPubkey'' function with the KeyGen Context.
-To get the plain aggregate public key, which is required for some applications of [[#tweaking|tweaking]], implementations call ''GetPlainPubkey'' instead.
+To get the plain aggregate public key, which is required for some applications of [[#tweaking-the-aggregate-public-key|tweaking]], implementations call ''GetPlainPubkey'' instead.
 
 The aggregate public key produced by ''KeyAgg'' is dependent on the order of the input public keys.
 If the application does not have a canonical order of the signers, the public keys can be sorted with the ''KeySort'' algorithm to ensure that the aggregate public key is independent of the order of signers.
@@ -181,7 +181,7 @@ In particular, partial signatures are ''not'' signatures.
 An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key.<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'', but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b a write up by Adam Gibson].</ref>
 However, if ''PartialSigVerify'' succeeds for all partial signatures then ''PartialSigAgg'' will return a valid Schnorr signature.<ref>Given a list of public keys, it is an open question whether a valid BIP-340 signature for the aggregate of the public keys is proof of knowledge of the secret keys corresponding to the input list.</ref>
 
-=== Tweaking ===
+=== Tweaking the Aggregate Public Key ===
 
 The aggregate public key can be ''tweaked'', which modifies the key as defined in the [[#tweaking-definition|Tweaking Definition]] subsection.
 In order to apply a tweak, the KeyGen Context output by ''KeyAgg'' is provided to the ''ApplyTweak'' algorithm with the ''is_xonly_t'' argument set to false for plain tweaking and true for X-only tweaking.
@@ -634,7 +634,7 @@ Algorithm ''DeterministicSign(sk, aggothernonce, pk<sub>1..u</sub>, tweak<sub>1.
 
 === Tweaking Definition ===
 
-Two modes of tweaking are supported. They correspond to the following algorithms:
+Two modes of tweaking the aggregate public key are supported. They correspond to the following algorithms:
 
 <div>
 Algorithm ''ApplyPlainTweak(P, t)'':
