@@ -130,7 +130,7 @@ Since MuSig2 key aggregation would accept the duplicate keys and not error out, 
 === Nonce Generation ===
 
 '''IMPORTANT''': ''NonceGen'' must have access to a high-quality random generator to draw an unbiased, uniformly random value ''rand' ''.
-In contrast to BIP340 signing, the values ''k<sub>1</sub>'' and ''k<sub>2</sub>'' '''must not be derived deterministically''' from the session parameters because otherwise active attackers can  [https://medium.com/blockstream/musig-dn-schnorr-multisignatures-with-verifiably-deterministic-nonces-27424b5df9d6#e3b6 trick the victim into reusing a nonce].
+In contrast to BIP340 signing, the values ''k<sub>1</sub>'' and ''k<sub>2</sub>'' '''must not be derived deterministically''' from the session parameters because otherwise active adversaries can  [https://medium.com/blockstream/musig-dn-schnorr-multisignatures-with-verifiably-deterministic-nonces-27424b5df9d6#e3b6 trick the victim into reusing a nonce].
 
 The optional arguments to ''NonceGen'' enable a defense-in-depth mechanism that may prevent secret key exposure if ''rand' '' is accidentally not drawn uniformly at random.
 If the value ''rand' '' was identical in two ''NonceGen'' invocations, but any other argument was different, the ''secnonce'' would still be guaranteed to be different as well (with overwhelming probability), and thus accidentally using the same ''secnonce'' for ''Sign'' in both sessions would be avoided.
@@ -138,7 +138,7 @@ Therefore, it is recommended to provide the optional arguments ''sk'', ''aggpk''
 The auxiliary input ''extra_in'' can contain additional contextual data that has a chance of changing between ''NonceGen'' runs,
 e.g., a supposedly unique session id (taken from the application), a session counter wide enough not to repeat in practice, any nonces by other signers (if already known), or the serialization of a data structure containing multiple of the above.
 However, the protection provided by the optional arguments should only be viewed as a last resort.
-In most conceivable scenarios, the assumption that the arguments are different between two executions of ''NonceGen'' is relatively strong, particularly when facing an active attacker.
+In most conceivable scenarios, the assumption that the arguments are different between two executions of ''NonceGen'' is relatively strong, particularly when facing an active adversary.
 
 In some applications, it is beneficial to generate and send a ''pubnonce'' before the other signers, their individual public keys, or the message to sign is known.
 In this case, only the available arguments are provided to the ''NonceGen'' algorithm.
@@ -465,7 +465,7 @@ Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * Let ''s = (k<sub>1</sub> + b⋅k<sub>2</sub> + e⋅a⋅d) mod n''
 * Let ''psig = bytes(32, s)''
 * Let ''pubnonce = cbytes(k<sub>1</sub>'⋅G) || cbytes(k<sub>2</sub>'⋅G)''
-* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, fail<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended but can be omitted if the computation cost is prohibitive.</ref>
+* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, fail<ref>Verifying the signature before leaving the signer prevents random or adversarially provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended but can be omitted if the computation cost is prohibitive.</ref>
 * Return partial signature ''psig''
 </div>
 
@@ -556,7 +556,7 @@ This removes the adversary's ability to influence the secret key after having se
 and thus rules out the attack.<ref>Ensuring that the secret key provided to ''Sign'' is fully determined already when ''NonceGen'' is invoked is a simple policy to rule out the attack,
 but more flexible polices are conceivable.
 In fact, if the signer uses nothing but the message to be signed and the list of the individual public keys of all signers to decide which secret key to use,
-then it is not a problem that the attacker can influence this decision after having seen the ''pubnonce''.<br />
+then it is not a problem that the adversary can influence this decision after having seen the ''pubnonce''.<br />
 More formally, consider modified algorithms ''NonceGen' '' and ''Sign' '', where ''NonceGen' '' does not take the individual public key of the signer as input and does not store it in pubnonce, and Sign' does not check read the individual public key from pubnonce and does not check it against the secret key taken as input.
 Then it suffices that for each invocation of ''NonceGen' '' with output ''(secnonce, pubnonce)'',
 a function ''fsk'' is determined before sending out ''pubnonce'',
