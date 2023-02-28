@@ -170,7 +170,7 @@ Aborts are identifiable for an honest party if the following conditions hold in 
 If these conditions hold and an honest party (signer or aggregator) runs an algorithm that fails due to invalid protocol contributions from malicious signers, then the algorithm run by the honest party will output the index of exactly one malicious signer.
 Additionally, if the honest parties agree on the contributions sent by all signers in the signing session, all the honest parties who run the aborting algorithm will identify the same malicious signer.
 
-==== Further remarks ====
+==== Further Remarks ====
 
 Some of the algorithms specified below may also assign blame to a malicious aggregator.
 While this is possible for some particular misbehavior of the aggregator, it is not guaranteed that a malicious aggregator can be identified.
@@ -178,7 +178,7 @@ More specifically, a malicious aggregator (whose existence violates the second c
 
 The only purpose of the algorithm ''PartialSigVerify'' is to ensure identifiable aborts, and it is not necessary to use it when identifiable aborts are not desired.
 In particular, partial signatures are ''not'' signatures.
-An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key.<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'', but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b a write up by Adam Gibson].</ref>
+An adversary can forge a partial signature, i.e., create a partial signature without knowing the secret key for the claimed public key.<ref>Assume an adversary wants to forge a partial signature for public key ''P''. It joins the signing session pretending to be two different signers, one with public key ''P'' and one with another public key. The adversary can then set the second signer's nonce such that it will be able to produce a partial signature for ''P'' but not for the other claimed signer. An explanation of the individual steps required to create a partial signature forgery can be found in [https://gist.github.com/AdamISZ/ca974ed67889cedc738c4a1f65ff620b a write up by Adam Gibson].</ref>
 However, if ''PartialSigVerify'' succeeds for all partial signatures then ''PartialSigAgg'' will return a valid Schnorr signature.<ref>Given a list of public keys, it is an open question whether a valid BIP-340 signature for the aggregate of the public keys is proof of knowledge of the secret keys corresponding to the input list.</ref>
 
 === Tweaking the Aggregate Public Key ===
@@ -190,7 +190,7 @@ The resulting KeyGen Context can be used to apply another tweak with ''ApplyTwea
 In addition to public keys, the ''KeyAgg'' algorithm accepts tweaks, which modify the aggregate public key as defined in the [[#tweaking-definition|Tweaking Definition]] subsection.
 For example, if ''KeyAgg'' is run with ''v = 2'', ''is_xonly_t<sub>1</sub> = false'', ''is_xonly_t<sub>2</sub> = true'', then the aggregate public key is first plain tweaked with ''tweak<sub>1</sub>'' and then X-only tweaked with ''tweak<sub>2</sub>''.
 
-The purpose of specifying tweaking is to ensure compatibility with existing uses of tweaking, i.e., that the result of signing is a valid signature for the tweaked public key.
+The purpose of supporting tweaking is to ensure compatibility with existing uses of tweaking, i.e., that the result of signing is a valid signature for the tweaked public key.
 The MuSig2 algorithms take arbitrary tweaks as input but accepting arbitrary tweaks may negatively affect the security of the scheme.<ref>It is an open question whether allowing arbitrary tweaks from an adversary affects the unforgeability of MuSig2.</ref>
 Instead, signers should obtain the tweaks according to other specifications.
 This typically involves deriving the tweaks from a hash of the aggregate public key and some other information.
@@ -465,7 +465,7 @@ Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * Let ''s = (k<sub>1</sub> + b⋅k<sub>2</sub> + e⋅a⋅d) mod n''
 * Let ''psig = bytes(32, s)''
 * Let ''pubnonce = cbytes(k<sub>1</sub>'⋅G) || cbytes(k<sub>2</sub>'⋅G)''
-* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, fail<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended, but can be omitted if the computation cost is prohibitive.</ref>
+* If ''PartialSigVerifyInternal(psig, pubnonce, pk, session_ctx)'' (see below) returns failure, fail<ref>Verifying the signature before leaving the signer prevents random or attacker provoked computation errors. This prevents publishing invalid signatures which may leak information about the secret key. It is recommended but can be omitted if the computation cost is prohibitive.</ref>
 * Return partial signature ''psig''
 </div>
 
@@ -725,7 +725,7 @@ The ''[[#SigVerify negation|PartialSigVerifyInternal]]'' algorithm is supposed t
 </poem>
 
 <poem>
-The verifier doesn't have access to ''d⋅G'', but can construct it using the individual public key ''pk'' as follows:
+The verifier doesn't have access to ''d⋅G'' but can construct it using the individual public key ''pk'' as follows:
 ''d⋅G
     = g<sub>v</sub>⋅gacc<sub>v</sub>⋅d'⋅G
     = g<sub>v</sub>⋅gacc<sub>v</sub>⋅cpoint(pk)''
