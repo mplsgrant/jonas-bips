@@ -16,7 +16,7 @@
 
 This document proposes a standard for the [https://eprint.iacr.org/2020/1261.pdf MuSig2] multi-signature scheme.
 The standard is compatible with [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340] public keys and signatures.
-It supports ''tweaking'', which allows deriving [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32] child keys from aggregate keys and creating [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] Taproot outputs with key and script paths.
+It supports ''tweaking'', which allows deriving [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32] child keys from aggregate public keys and creating [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] Taproot outputs with key and script paths.
 
 === Copyright ===
 
@@ -24,7 +24,7 @@ This document is licensed under the 3-clause BSD license.
 
 === Motivation ===
 
-MuSig2 is a multi-signature scheme that allows multiple signers to create a single aggregate public key and cooperatively create ordinary Schnorr signatures valid under the aggregate key.
+MuSig2 is a multi-signature scheme that allows multiple signers to create a single aggregate public key and cooperatively create ordinary Schnorr signatures valid under the aggregate public key.
 Signing requires interaction between ''all'' signers involved in key aggregation.
 (MuSig2 is a ''n-of-n'' multi-signature scheme and not a ''t-of-n'' threshold-signature scheme.)
 
@@ -35,7 +35,7 @@ It can be spent using MuSig2 to produce a signature for the key-based spending p
 The on-chain footprint of a MuSig2 Taproot output is essentially a single BIP340 public key, and a transaction spending the output only requires a single signature cooperatively produced by all signers. This is '''more compact''' and has '''lower verification cost''' than each signer providing an individual public key and signature, as would be required by an ''n-of-n'' policy implemented using <code>OP_CHECKSIGADD</code> as introduced in ([https://github.com/bitcoin/bips/blob/master/bip-0342.mediawiki BIP342]).
 As a side effect, the number ''n'' of signers is not limited by any consensus rules when using MuSig2.
 
-Moreover, MuSig2 offers a '''higher level of privacy''' than <code>OP_CHECKSIGADD</code>: MuSig2 Taproot outputs are indistinguishable for a blockchain observer from regular, single-signer Taproot outputs even though they are actually controlled by multiple signers. By tweaking an aggregate key, the shared Taproot output can have script spending paths that are hidden unless used.
+Moreover, MuSig2 offers a '''higher level of privacy''' than <code>OP_CHECKSIGADD</code>: MuSig2 Taproot outputs are indistinguishable for a blockchain observer from regular, single-signer Taproot outputs even though they are actually controlled by multiple signers. By tweaking an aggregate public key, the shared Taproot output can have script spending paths that are hidden unless used.
 
 There are multi-signature schemes other than MuSig2 that are fully compatible with Schnorr signatures.
 The MuSig2 variant proposed below stands out by combining all the following features:
@@ -46,7 +46,7 @@ The MuSig2 variant proposed below stands out by combining all the following feat
 
 === Design ===
 
-* '''Compatibility with BIP340''': In this proposal, the aggregate public key is a BIP340 X-only public key, and the signature output at the end of the signing protocol is a BIP340 signature that passes BIP340 verification for the aggregate key and a message. The public keys that are input to the key aggregation algorithm are ''plain'' public keys in compressed format.
+* '''Compatibility with BIP340''': In this proposal, the aggregate public key is a BIP340 X-only public key, and the signature output at the end of the signing protocol is a BIP340 signature that passes BIP340 verification for the aggregate public key and a message. The public keys that are input to the key aggregation algorithm are ''plain'' public keys in compressed format.
 * '''Tweaking for BIP32 derivations and Taproot''': This proposal supports tweaking aggregate public keys and signing for tweaked aggregate public keys. We distinguish two modes of tweaking: ''Plain'' tweaking can be used to derive child aggregate public keys per [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki BIP32]. ''X-only'' tweaking, on the other hand, allows creating a [https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki BIP341] tweak to add script paths to a Taproot output. See section [[#tweaking|Tweaking]] below for details.
 * '''Non-interactive signing with preprocessing''': The first communication round, exchanging the nonces, can happen before the message or the exact set of signers is determined. Once the parameters of the signing session are finalized, the signers can send partial signatures without additional interaction.
 * '''Key aggregation optionally independent of order''': The output of the key aggregation algorithm depends on the order of the input public keys. Key aggregation does not sort the public keys by default because applications often already have a canonical order of signers. Nonetheless, applications can mandate sorting before aggregation,<ref>Applications that sort input public keys before aggregation should ensure that the implementation of sorting is reasonably efficient, and in particular does not degenerate to quadratic runtime on pathological inputs.</ref> and this proposal specifies a canonical order to sort the public keys before key aggregation. Sorting will ensure the same output, independent of the initial order.
@@ -107,13 +107,13 @@ Plain public keys are byte strings of length 33 (often called ''compressed'' for
 In contrast, X-only public keys are 32-byte strings defined in [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340].
 
 The individual public keys of signers as input to the key aggregation algorithm ''KeyAgg'' (and to ''GetSessionValues'' and ''PartialSigVerify'') are plain public keys.
-The output of ''KeyAgg'' is a [[#keygen-context|KeyGen Context]] which stores information required for tweaking the aggregate key (see [[#tweaking|below]]),
+The output of ''KeyAgg'' is a [[#keygen-context|KeyGen Context]] which stores information required for tweaking the aggregate public key (see [[#tweaking|below]]),
 and it can be used to produce an X-only aggregate public key, or a plain aggregate public key.
 In order to obtain an X-only public key compatible with BIP340 verification, implementations call the ''GetXonlyPubkey'' function with the KeyGen Context.
 To get the plain aggregate public key, which is required for some applications of [[#tweaking|tweaking]], implementations call ''GetPlainPubkey'' instead.
 
-The aggregate key produced by ''KeyAgg'' is dependent on the order of the input public keys.
-If the application does not have a canonical order of the signers, the public keys can be sorted with the ''KeySort'' algorithm to ensure that the aggregate key is independent of the order of signers.
+The aggregate public key produced by ''KeyAgg'' is dependent on the order of the input public keys.
+If the application does not have a canonical order of the signers, the public keys can be sorted with the ''KeySort'' algorithm to ensure that the aggregate public key is independent of the order of signers.
 
 The same public key is allowed to occur more than once in the input of ''KeyAgg'' and ''KeySort''.
 This is by design: All algorithms in this proposal handle multiple signers who (claim to) have identical public keys properly,
@@ -188,7 +188,7 @@ In order to apply a tweak, the KeyGen Context output by ''KeyAgg'' is provided t
 The resulting KeyGen Context can be used to apply another tweak with ''ApplyTweak'' or obtain the aggregate public key with ''GetXonlyPubkey'' or ''GetPlainPubkey''.
 
 In addition to public keys, the ''KeyAgg'' algorithm accepts tweaks, which modify the aggregate public key as defined in the [[#tweaking-definition|Tweaking Definition]] subsection.
-For example, if ''KeyAgg'' is run with ''v = 2'', ''is_xonly_t<sub>1</sub> = false'', ''is_xonly_t<sub>2</sub> = true'', then the aggregate key is first plain tweaked with ''tweak<sub>1</sub>'' and then X-only tweaked with ''tweak<sub>2</sub>''.
+For example, if ''KeyAgg'' is run with ''v = 2'', ''is_xonly_t<sub>1</sub> = false'', ''is_xonly_t<sub>2</sub> = true'', then the aggregate public key is first plain tweaked with ''tweak<sub>1</sub>'' and then X-only tweaked with ''tweak<sub>2</sub>''.
 
 The purpose of specifying tweaking is to ensure compatibility with existing uses of tweaking, i.e., that the result of signing is a valid signature for the tweaked public key.
 The MuSig2 algorithms take arbitrary tweaks as input but accepting arbitrary tweaks may negatively affect the security of the scheme.<ref>It is an open question whether allowing arbitrary tweaks from an adversary affects the unforgeability of MuSig2.</ref>
