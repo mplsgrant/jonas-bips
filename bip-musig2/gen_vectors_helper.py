@@ -3,7 +3,7 @@ from reference import *
 def gen_key_agg_vectors():
     print("key_agg_vectors.json: Intermediate tweaking result is point at infinity")
     sk = bytes.fromhex("7FB9E0E687ADA1EEBF7ECFE2F21E73EBDB51A7D450948DFE8D76D7F2D1007671")
-    pk = plain_pk_gen(sk)
+    pk = individual_pk(sk)
     keygen_ctx = key_agg([pk])
     aggpoint, _, _ = keygen_ctx
     aggsk = key_agg_coeff([pk], pk)*int_from_bytes(sk) % n
@@ -71,7 +71,7 @@ def sig_agg_vectors():
         "3874D22DE7A7290C49CE7F1DC17D1A8CD8918E1F799055139D57FC0988D04D10",
         "D0EA1B84481ED1BCFAA39D6775F97BDC9BF8D7C02FD0C009D6D85BAE5EC7B87A",
         "FC2BF9E056B273AF0A8AABB815E541A3552C142AC10D4FE584F01D2CAB84F577"])
-    pubkeys = list(map(lambda secret: plain_pk_gen(secret), sk))
+    pubkeys = list(map(lambda secret: individual_pk(secret), sk))
     indices32 = [i.to_bytes(32, 'big') for i in range(6)]
     secnonces, pnonces = zip(*[nonce_gen_internal(r, None, pubkeys[0], None, None, None) for r in indices32])
     tweaks = fromhex_all([
