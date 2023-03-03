@@ -554,9 +554,10 @@ def test_nonce_gen_vectors() -> None:
             aggpk = XonlyPk(aggpk)
         msg = get_value_maybe("msg")
         extra_in = get_value_maybe("extra_in")
-        expected = get_value("expected")
+        expected_secnonce = get_value("expected_secnonce")
+        expected_pubnonce = get_value("expected_pubnonce")
 
-        assert nonce_gen_internal(rand_, sk, pk, aggpk, msg, extra_in)[0] == expected
+        assert nonce_gen_internal(rand_, sk, pk, aggpk, msg, extra_in) == (expected_secnonce, expected_pubnonce)
 
 def test_nonce_agg_vectors() -> None:
     with open(os.path.join(sys.path[0], 'vectors', 'nonce_agg_vectors.json')) as f:

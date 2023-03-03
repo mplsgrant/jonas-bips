@@ -776,6 +776,8 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
+* '''1.0.0-rc.4''' (2023-03-02):
+** Add expected value of ''pubnonce'' to ''NonceGen'' test vectors.
 * '''1.0.0-rc.3''' (2023-02-28):
 ** Improve ''NonceGen'' test vectors by not using an all-zero hex string as ''rand_'' values. This change addresses potential issues in some implementations that interpret this as a special value indicating uninitialized memory or a broken random number generator and therefore return an error.
 ** Fix invalid length of a ''pubnonce'' in the ''PartialSigVerify'' test vectors.
