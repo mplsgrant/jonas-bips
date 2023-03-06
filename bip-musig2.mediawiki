@@ -248,7 +248,7 @@ The following conventions are used, with constants as defined for [https://www.s
 * Other:
 ** Tuples are written by listing the elements within parentheses and separated by commas. For example, ''(2, 3, 1)'' is a tuple.
 
-=== Key Generation ===
+=== Key Generation and Aggregation ===
 
 ==== Key Generation of an Individual Signer ====
 
@@ -385,7 +385,8 @@ Algorithm ''NonceGen(sk, pk, aggpk, m, extra_in)'':
 * Fail if ''k<sub>1</sub> = 0'' or ''k<sub>2</sub> = 0''
 * Let ''R<sub>⁎,1</sub> = k<sub>1</sub>⋅G, R<sub>⁎,2</sub> = k<sub>2</sub>⋅G''
 * Let ''pubnonce = cbytes(R<sub>⁎,1</sub>) || cbytes(R<sub>⁎,2</sub>)''
-* Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>) || pk''
+* Let ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>) || pk''<ref name="secnonce">The algorithms as specified here assume that the ''secnonce'' is stored as a 97-byte array using the serialization ''secnonce = bytes(32, k<sub>1</sub>) || bytes(32, k<sub>2</sub>) || pk''. The same format is used in the reference implementation and in the test vectors. However, since the ''secnonce'' is (obviously) not meant to be sent over the wire, compatibility between implementations is not a concern, and this method of storing the ''secnonce'' is merely a suggestion.<br />
+The ''secnonce'' is effectively a local data structure of the signer which comprises the value triple ''(k<sub>1</sub>, k<sub>2</sub>, pk)'', and implementations may choose any suitable method to carry it from ''NonceGen'' (first communication round) to ''Sign'' (second communication round). In particular, implementations may choose to hide the ''secnonce'' in internal state without exposing it in an API explicitly, e.g., in an effort to prevent callers from reusing a ''secnonce'' accidentally.</ref>
 * Return ''(secnonce, pubnonce)''
 </div>
 
@@ -447,7 +448,7 @@ Algorithm ''GetSessionKeyAggCoeff(session_ctx, P)'':
 <div>
 Algorithm ''Sign(secnonce, sk, session_ctx)'':
 * Inputs:
-** The secret nonce ''secnonce'' that has never been used as input to ''Sign'' before: a 97-byte array
+** The secret nonce ''secnonce'' that has never been used as input to ''Sign'' before: a 97-byte array<ref name="secnonce" />
 ** The secret key ''sk'': a 32-byte array
 ** The ''session_ctx'': a [[#session-context|Session Context]] data structure
 * Let ''(Q, gacc, _, b, R, e) = GetSessionValues(session_ctx)''; fail if that fails
