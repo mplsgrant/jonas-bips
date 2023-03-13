@@ -768,6 +768,11 @@ There are, however, insecure toy schemes with AGM security proofs, but those exp
 In contrast, in MuSig2, all group elements that arise in the scheme are known to the adversary and declared as group element inputs.
 A scheme very similar to MuSig2 and with two-point nonces was independently proven secure in the ROM and AGM by [https://eprint.iacr.org/2020/1245 Alper and Burdges].
 
+== Backwards Compatibility ==
+
+This document proposes a standard for the MuSig2 multi-signature scheme that is compatible with [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP340].
+MuSig2 is ''not'' compatible with ECDSA signatures traditionally used in Bitcoin.
+
 == Change Log ==
 
 To help implementers understand updates to this document, we attach a version number that resembles ''semantic versioning'' (<code>MAJOR.MINOR.PATCH</code>).
