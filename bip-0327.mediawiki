@@ -1,6 +1,6 @@
 <pre>
-  BIP: ?
-  Title: MuSig2
+  BIP: 327
+  Title: MuSig2 for BIP340-compatible Multi-Signatures
   Author: Jonas Nick <jonasd.nick@gmail.com>
           Tim Ruffing <crypto@timruffing.de>
           Elliott Jin <elliott.jin@gmail.com>
@@ -523,9 +523,9 @@ Algorithm ''PartialSigAgg(psig<sub>1..u</sub>, session_ctx)'':
 
 === Test Vectors and Reference Code ===
 
-We provide a naive, highly inefficient, and non-constant time [[bip-musig2/reference.py|pure Python 3 reference implementation of the key aggregation, partial signing, and partial signature verification algorithms]].
+We provide a naive, highly inefficient, and non-constant time [[bip-0327/reference.py|pure Python 3 reference implementation of the key aggregation, partial signing, and partial signature verification algorithms]].
 
-Standalone JSON test vectors are also available in the [[bip-musig2|same directory]], to facilitate porting the test vectors into other implementations.
+Standalone JSON test vectors are also available in the [[bip-0327|same directory]], to facilitate porting the test vectors into other implementations.
 
 The reference implementation is for demonstration purposes only and not to be used in production environments.
 
@@ -782,6 +782,8 @@ An exception to this rule is <code>MAJOR</code> version zero (0.y.z) which is fo
 The <code>MINOR</code> version is incremented whenever the inputs or the output of an algorithm changes in a backward-compatible way or new backward-compatible functionality is added.
 The <code>PATCH</code> version is incremented for other changes that are noteworthy (bug fixes, test vectors, important clarifications, etc.).
 
+* '''1.0.0''' (2023-03-26):
+** Number 327 was assigned to this BIP.
 * '''1.0.0-rc.4''' (2023-03-02):
 ** Add expected value of ''pubnonce'' to ''NonceGen'' test vectors.
 * '''1.0.0-rc.3''' (2023-02-28):
